@@ -57,14 +57,15 @@ void dm_game_shutdown(GameHost_Private* host)
 {
     {
         std::lock_guard<std::mutex> clientGuard(host->m_clientMutex);
-        for (auto client_iter = host->m_clients.begin(); client_iter != host->m_clients.end(); ++client_iter)
-            DS::CloseSock(client_iter->second->m_sock);
+        for (auto& client : host->m_clients)
+            DS::CloseSock(client.second->m_sock);
     }
 
-    host->m_cloneMutex.lock();
-    for (auto clone_iter = host->m_clones.begin(); clone_iter != host->m_clones.end(); ++clone_iter)
-        clone_iter->second->unref();
-    host->m_cloneMutex.unlock();
+    {
+        std::lock_guard<std::mutex> cloneGuard(host->m_cloneMutex);
+        for (auto& clone : host->m_clones)
+            clone.second->unref();
+    }
 
     bool complete = false;
     for (int i=0; i<50 && !complete; ++i) {
@@ -106,13 +107,13 @@ void dm_propagate(GameHost_Private* host, MOUL::NetMessage* msg, uint32_t sender
 
     std::lock_guard<std::mutex> clientGuard(host->m_clientMutex);
     DS::SendFlag mode = (msg->m_contentFlags & MOUL::NetMessage::e_NeedsReliableSend) ? DS::e_SendNoRetry : DS::e_SendSpam;
-    for (auto client_iter = host->m_clients.begin(); client_iter != host->m_clients.end(); ++client_iter) {
-        if (client_iter->second->m_clientInfo.m_PlayerId == sender
+    for (auto& client_iter : host->m_clients) {
+        if (client_iter.second->m_clientInfo.m_PlayerId == sender
             && !(msg->m_contentFlags & MOUL::NetMessage::e_EchoBackToSender))
             continue;
 
         try {
-            DS::CryptSendBuffer(client_iter->second->m_sock, client_iter->second->m_crypt,
+            DS::CryptSendBuffer(client_iter.second->m_sock, client_iter.second->m_crypt,
                                 host->m_buffer.buffer(), host->m_buffer.size(), mode);
         } catch (DS::SockHup) {
             // This is handled below too, but we don't want to skip the rest
@@ -127,12 +128,12 @@ void dm_propagate_to(GameHost_Private* host, MOUL::NetMessage* msg,
     DM_WRITEMSG(host, msg);
     DS::SendFlag mode = (msg->m_contentFlags & MOUL::NetMessage::e_NeedsReliableSend) ? DS::e_SendNoRetry : DS::e_SendSpam;
 
-    for (auto rcvr_iter = receivers.begin(); rcvr_iter != receivers.end(); ++rcvr_iter) {
+    for (uint32_t rcvr : receivers) {
         std::lock_guard<std::mutex> hostGuard(s_gameHostMutex);
-        for (hostmap_t::iterator recv_host = s_gameHosts.begin(); recv_host != s_gameHosts.end(); ++recv_host) {
-            std::lock_guard<std::mutex> clientGuard(recv_host->second->m_clientMutex);
-            auto client = recv_host->second->m_clients.find(*rcvr_iter);
-            if (client != recv_host->second->m_clients.end()) {
+        for (auto& recv_host : s_gameHosts) {
+            std::lock_guard<std::mutex> clientGuard(recv_host.second->m_clientMutex);
+            auto client = recv_host.second->m_clients.find(rcvr);
+            if (client != recv_host.second->m_clients.end()) {
                 try {
                     DS::CryptSendBuffer(client->second->m_sock, client->second->m_crypt,
                                         host->m_buffer.buffer(), host->m_buffer.size(), mode);
@@ -149,8 +150,7 @@ void dm_propagate_to(GameHost_Private* host, MOUL::NetMessage* msg,
 void dm_game_disconnect(GameHost_Private* host, Game_ClientMessage* msg)
 {
     // Unload the avatar clone if the client committed hara-kiri
-    if (msg->m_client->m_isLoaded && !msg->m_client->m_clientKey.isNull())
-    {
+    if (msg->m_client->m_isLoaded && !msg->m_client->m_clientKey.isNull()) {
         MOUL::LoadCloneMsg* cloneMsg = MOUL::LoadCloneMsg::Create();
         cloneMsg->m_bcastFlags = MOUL::Message::e_NetPropagate
                                | MOUL::Message::e_LocalPropagate;
@@ -191,8 +191,7 @@ void dm_game_disconnect(GameHost_Private* host, Game_ClientMessage* msg)
 
     // Release any stale locks
     host->m_lockMutex.lock();
-    for (auto it = host->m_locks.begin(); it != host->m_locks.end(); )
-    {
+    for (auto it = host->m_locks.begin(); it != host->m_locks.end(); ) {
         if (it->second == msg->m_client->m_clientInfo.m_PlayerId)
             it = host->m_locks.erase(it);
         else
@@ -338,12 +337,10 @@ void dm_send_state(GameHost_Private* host, GameClient_Private* client)
         ++states;
     }
 
-    for (sdlstatemap_t::iterator state_iter = host->m_states.begin();
-         state_iter != host->m_states.end(); ++state_iter) {
-        for (sdlnamemap_t::iterator it = state_iter->second.begin();
-             it != state_iter->second.end(); ++it) {
-            state->m_object = state_iter->first;
-            state->m_sdlBlob = it->second.toBlob();
+    for (auto& state_iter : host->m_states) {
+        for (auto& name_iter : state_iter.second) {
+            state->m_object = state_iter.first;
+            state->m_sdlBlob = name_iter.second.toBlob();
             DM_WRITEMSG(host, state);
             DS::CryptSendBuffer(client->m_sock, client->m_crypt,
                                 host->m_buffer.buffer(), host->m_buffer.size());
@@ -516,12 +513,12 @@ void dm_send_members(GameHost_Private* host, GameClient_Private* client)
 
     host->m_clientMutex.lock();
     members->m_members.reserve(host->m_clients.size() - 1);
-    for (auto client_iter = host->m_clients.begin(); client_iter != host->m_clients.end(); ++client_iter) {
-        if (client_iter->second->m_clientInfo.m_PlayerId != client->m_clientInfo.m_PlayerId
+    for (auto& client_iter : host->m_clients) {
+        if (client_iter.second->m_clientInfo.m_PlayerId != client->m_clientInfo.m_PlayerId
             && !client->m_clientKey.isNull()) {
             MOUL::NetMsgMemberInfo info;
-            info.m_client = client_iter->second->m_clientInfo;
-            info.m_avatarKey = client_iter->second->m_clientKey;
+            info.m_client = client_iter.second->m_clientInfo;
+            info.m_avatarKey = client_iter.second->m_clientKey;
             members->m_members.push_back(info);
         }
     }
@@ -535,9 +532,8 @@ void dm_send_members(GameHost_Private* host, GameClient_Private* client)
     // Load non-avatar clones (ie NPC quabs)
     {
         std::lock_guard<std::mutex> cloneGuard(host->m_cloneMutex);
-        for (auto clone_iter = host->m_clones.begin(); clone_iter != host->m_clones.end(); ++clone_iter)
-        {
-            DM_WRITEMSG(host, clone_iter->second);
+        for (auto& clone_iter : host->m_clones) {
+            DM_WRITEMSG(host, clone_iter.second);
             DS::CryptSendBuffer(client->m_sock, client->m_crypt,
                                 host->m_buffer.buffer(), host->m_buffer.size());
         }
@@ -565,11 +561,11 @@ void dm_send_members(GameHost_Private* host, GameClient_Private* client)
 
     {
         std::lock_guard<std::mutex> clientGuard(host->m_clientMutex);
-        for (auto client_iter = host->m_clients.begin(); client_iter != host->m_clients.end(); ++client_iter) {
-            if (client_iter->second->m_clientInfo.m_PlayerId != client->m_clientInfo.m_PlayerId
+        for (auto& client_iter : host->m_clients) {
+            if (client_iter.second->m_clientInfo.m_PlayerId != client->m_clientInfo.m_PlayerId
                 && !client->m_clientKey.isNull()) {
-                avatarMsg->m_cloneKey = client_iter->second->m_clientKey;
-                avatarMsg->m_originPlayerId = client_iter->second->m_clientInfo.m_PlayerId;
+                avatarMsg->m_cloneKey = client_iter.second->m_clientKey;
+                avatarMsg->m_originPlayerId = client_iter.second->m_clientInfo.m_PlayerId;
 
                 DM_WRITEMSG(host, cloneMsg);
                 DS::CryptSendBuffer(client->m_sock, client->m_crypt,
@@ -583,9 +579,9 @@ void dm_send_members(GameHost_Private* host, GameClient_Private* client)
                 state->m_isInitial = true;
                 state->m_persistOnServer = true;
                 state->m_isAvatar = false;
-                state->m_object = client_iter->second->m_clientKey;
-                for (auto sdl_iter = client_iter->second->m_states.begin(); sdl_iter != client_iter->second->m_states.end(); ++sdl_iter) {
-                    state->m_sdlBlob = sdl_iter->second.toBlob();
+                state->m_object = client_iter.second->m_clientKey;
+                for (auto& sdl_iter : client_iter.second->m_states) {
+                    state->m_sdlBlob = sdl_iter.second.toBlob();
                     DM_WRITEMSG(host, state);
                     DS::CryptSendBuffer(client->m_sock, client->m_crypt,
                                         host->m_buffer.buffer(), host->m_buffer.size());
@@ -603,28 +599,22 @@ void dm_load_clone(GameHost_Private* host, GameClient_Private* client,
     MOUL::LoadCloneMsg* msg = netmsg->m_message->Cast<MOUL::LoadCloneMsg>();
     if (msg->makeSafeForNet())
     {
-        if (netmsg->m_isPlayer)
-        {
+        if (netmsg->m_isPlayer) {
             host->m_clientMutex.lock();
             client->m_clientKey = netmsg->m_object;
             client->m_isLoaded = netmsg->m_isLoading;
             host->m_clientMutex.unlock();
-        }
-        else
-        {
+        } else {
             std::lock_guard<std::mutex> cloneGuard(host->m_cloneMutex);
             auto it = host->m_clones.find(netmsg->m_object);
-            if (it != host->m_clones.end())
-            {
+            if (it != host->m_clones.end()) {
                 it->second->unref();
                 // If, for some reason, the client decides to send a dupe (it can happen...)
                 if (netmsg->m_isLoading)
                     host->m_clones[netmsg->m_object] = netmsg;
                 else
                     host->m_clones.erase(it);
-            }
-            else if (netmsg->m_isLoading)
-            {
+            } else if (netmsg->m_isLoading) {
                 netmsg->ref();
                 host->m_clones[netmsg->m_object] = netmsg;
             }
@@ -768,10 +758,10 @@ void dm_sdl_update(GameHost_Private* host, Game_SdlMessage* msg) {
     bcast->m_sdlBlob = msg->m_node.m_Blob_1;
 
     std::lock_guard<std::mutex> clientGuard(host->m_clientMutex);
-    for (auto client_iter = host->m_clients.begin(); client_iter != host->m_clients.end(); ++client_iter) {
+    for (auto& client_iter : host->m_clients) {
         try {
             DM_WRITEMSG(host, bcast);
-            DS::CryptSendBuffer(client_iter->second->m_sock, client_iter->second->m_crypt,
+            DS::CryptSendBuffer(client_iter.second->m_sock, client_iter.second->m_crypt,
                                 host->m_buffer.buffer(), host->m_buffer.size());
         } catch (DS::SockHup) {
             // This is handled below too, but we don't want to skip the rest

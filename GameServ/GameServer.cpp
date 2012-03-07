@@ -330,9 +330,8 @@ void DS::GameServer_Shutdown()
 {
     {
         std::lock_guard<std::mutex> gameHostGuard(s_gameHostMutex);
-        hostmap_t::iterator host_iter;
-        for (host_iter = s_gameHosts.begin(); host_iter != s_gameHosts.end(); ++host_iter)
-            host_iter->second->m_channel.putMessage(e_GameShutdown);
+        for (auto& host_iter : s_gameHosts)
+            host_iter.second->m_channel.putMessage(e_GameShutdown);
     }
 
     bool complete = false;
@@ -371,24 +370,23 @@ void DS::GameServer_DisplayClients()
     std::lock_guard<std::mutex> gameHostGuard(s_gameHostMutex);
     if (s_gameHosts.size())
         fputs("Game Servers:\n", stdout);
-    for (hostmap_t::iterator host_iter = s_gameHosts.begin(); host_iter != s_gameHosts.end(); ++host_iter) {
-        printf("    %s {%s}\n", host_iter->second->m_ageFilename.c_str(),
-               host_iter->second->m_instanceId.toString().c_str());
-        std::lock_guard<std::mutex> clientGuard(host_iter->second->m_clientMutex);
-        for (auto client_iter = host_iter->second->m_clients.begin();
-             client_iter != host_iter->second->m_clients.end(); ++ client_iter)
-            printf("      * %s - %s (%u)\n", DS::SockIpAddress(client_iter->second->m_sock).c_str(),
-                   client_iter->second->m_clientInfo.m_PlayerName.c_str(),
-                   client_iter->second->m_clientInfo.m_PlayerId);
+    for (auto& host_iter : s_gameHosts) {
+        printf("    %s {%s}\n", host_iter.second->m_ageFilename.c_str(),
+               host_iter.second->m_instanceId.toString().c_str());
+        std::lock_guard<std::mutex> clientGuard(host_iter.second->m_clientMutex);
+        for (auto& client_iter : host_iter.second->m_clients)
+            printf("      * %s - %s (%u)\n", DS::SockIpAddress(client_iter.second->m_sock).c_str(),
+                   client_iter.second->m_clientInfo.m_PlayerName.c_str(),
+                   client_iter.second->m_clientInfo.m_PlayerId);
     }
 }
 
 uint32_t DS::GameServer_GetNumClients(Uuid instance)
 {
     std::lock_guard<std::mutex> gameHostGuard(s_gameHostMutex);
-    for (auto it = s_gameHosts.begin(); it != s_gameHosts.end(); ++it) {
-        if (it->second->m_instanceId == instance)
-            return it->second->m_clients.size();
+    for (auto& host : s_gameHosts) {
+        if (host.second->m_instanceId == instance)
+            return host.second->m_clients.size();
     }
     return 0;
 }

@@ -33,10 +33,10 @@ void MOUL::NetMsgGroupOwner::read(DS::Stream* stream)
     NetMessage::read(stream);
 
     m_groups.resize(stream->read<uint32_t>());
-    for (size_t i=0; i<m_groups.size(); ++i) {
-        m_groups[i].m_group.m_location.read(stream);
-        m_groups[i].m_group.m_flags = stream->read<uint8_t>();
-        m_groups[i].m_own = stream->read<bool>();
+    for (GroupInfo& info : m_groups) {
+        info.m_group.m_location.read(stream);
+        info.m_group.m_flags = stream->read<uint8_t>();
+        info.m_own = stream->read<bool>();
     }
 }
 
@@ -45,9 +45,9 @@ void MOUL::NetMsgGroupOwner::write(DS::Stream* stream)
     NetMessage::write(stream);
 
     stream->write<uint32_t>(m_groups.size());
-    for (size_t i=0; i<m_groups.size(); ++i) {
-        m_groups[i].m_group.m_location.write(stream);
-        stream->write<uint8_t>(m_groups[i].m_group.m_flags);
-        stream->write<bool>(m_groups[i].m_own);
+    for (GroupInfo& info : m_groups) {
+        info.m_group.m_location.write(stream);
+        stream->write<uint8_t>(info.m_group.m_flags);
+        stream->write<bool>(info.m_own);
     }
 }

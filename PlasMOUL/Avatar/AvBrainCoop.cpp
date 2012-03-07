@@ -31,8 +31,8 @@ void MOUL::AvBrainCoop::read(DS::Stream* s)
     m_waitingForClick = s->read<bool>();
 
     m_recipients.resize(s->read<uint16_t>());
-    for (size_t i = 0; i < m_recipients.size(); ++i)
-        m_recipients[i].read(s);
+    for (MOUL::Key& recip : m_recipients)
+        recip.read(s);
 }
 
 void MOUL::AvBrainCoop::write(DS::Stream* s)
@@ -51,6 +51,6 @@ void MOUL::AvBrainCoop::write(DS::Stream* s)
     s->write<bool>(m_waitingForClick);
 
     s->write<uint16_t>(m_recipients.size());
-    for (size_t i = 0; i < m_recipients.size(); ++i)
-        m_recipients[i].write(s);
+    for (MOUL::Key& recip : m_recipients)
+        recip.write(s);
 }

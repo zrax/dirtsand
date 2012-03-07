@@ -66,8 +66,8 @@ void dm_auth_shutdown()
 {
     {
         std::lock_guard<std::mutex> authClientGuard(s_authClientMutex);
-        for (auto client_iter = s_authClients.begin(); client_iter != s_authClients.end(); ++client_iter)
-            DS::CloseSock((*client_iter)->m_sock);
+        for (AuthServer_Private* client_iter : s_authClients)
+            DS::CloseSock(client_iter->m_sock);
     }
 
     bool complete = false;
@@ -207,9 +207,7 @@ void dm_auth_bcast_node(uint32_t nodeIdx, const DS::Uuid& revision)
     *reinterpret_cast<DS::Uuid*>(buffer + 6) = revision;
 
     std::lock_guard<std::mutex> guard(s_authClientMutex);
-    for (auto it = s_authClients.begin(); it != s_authClients.end(); ++it)
-    {
-        AuthServer_Private* client = *it;
+    for (AuthServer_Private* client : s_authClients) {
         if (!(v_has_node(client->m_ageNodeId, nodeIdx) || v_has_node(client->m_player.m_playerId, nodeIdx)))
             continue;
         try {
@@ -229,9 +227,7 @@ void dm_auth_bcast_ref(const DS::Vault::NodeRef& ref)
     *reinterpret_cast<uint32_t*>(buffer + 10) = ref.m_owner;
 
     std::lock_guard<std::mutex> guard(s_authClientMutex);
-    for (auto it = s_authClients.begin(); it != s_authClients.end(); ++it)
-    {
-        AuthServer_Private* client = *it;
+    for (AuthServer_Private* client : s_authClients) {
         if (!(v_has_node(client->m_ageNodeId, ref.m_parent) || v_has_node(client->m_player.m_playerId, ref.m_parent)))
             continue;
         try {
@@ -250,9 +246,7 @@ void dm_auth_bcast_unref(const DS::Vault::NodeRef& ref)
     *reinterpret_cast<uint32_t*>(buffer + 6) = ref.m_child;
 
     std::lock_guard<std::mutex> guard(s_authClientMutex);
-    for (auto it = s_authClients.begin(); it != s_authClients.end(); ++it)
-    {
-        AuthServer_Private* client = *it;
+    for (AuthServer_Private* client : s_authClients) {
         if (!(v_has_node(client->m_ageNodeId, ref.m_parent) || v_has_node(client->m_player.m_playerId, ref.m_parent)))
             continue;
         try {
@@ -338,8 +332,8 @@ void dm_auth_setPlayer(Auth_ClientMessage* msg)
 
     {
         std::lock_guard<std::mutex> authClientGuard(s_authClientMutex);
-        for (auto client_iter = s_authClients.begin(); client_iter != s_authClients.end(); ++client_iter) {
-            if (client != *client_iter && (*client_iter)->m_player.m_playerId == client->m_player.m_playerId) {
+        for (AuthServer_Private* client_iter : s_authClients) {
+            if (client != client_iter && client_iter->m_player.m_playerId == client->m_player.m_playerId) {
                 printf("[Auth] {%s} requested already-active player (%u)\n",
                     client->m_acctUuid.toString().c_str(),
                     client->m_player.m_playerId);
@@ -785,7 +779,7 @@ void dm_auth_addScorePoints(Auth_UpdateScore* msg)
     PostgresStrings<3> parms;
     parms.set(0, msg->m_scoreId);
     PGresult* result = PQexecParams(s_postgres,
-                                   "SELECT \"Type\" FROM auth.\"Scores\" WHERE idx=$1",
+                                    "SELECT \"Type\" FROM auth.\"Scores\" WHERE idx=$1",
                                     1, nullptr, parms.m_values, nullptr, nullptr, 0);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
@@ -877,9 +871,9 @@ void dm_auth_updateAgeSrv(Auth_UpdateAgeSrv* msg)
 {
     AuthServer_Private* client = nullptr;
     s_authClientMutex.lock();
-    for (auto it = s_authClients.begin(); it != s_authClients.end(); ++it) {
-        if ((*it)->m_player.m_playerId == msg->m_playerId) {
-            client = *it;
+    for (AuthServer_Private* client_iter : s_authClients) {
+        if (client_iter->m_player.m_playerId == msg->m_playerId) {
+            client = client_iter;
             break;
         }
     }

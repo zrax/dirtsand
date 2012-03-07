@@ -113,7 +113,7 @@ void dm_htserv()
             DS::String path = action[1];
             lines.pop_front();
 
-            for (auto lniter = lines.begin(); lniter != lines.end(); ++lniter) {
+            for (const DS::String& ln : lines) {
                 // TODO: See if any of these fields are useful to us...
             }
 

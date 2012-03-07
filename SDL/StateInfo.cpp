@@ -970,8 +970,8 @@ void SDL::State::setDefault()
     if (!m_data)
         return;
 
-    for (auto it = m_data->m_vars.begin(); it != m_data->m_vars.end(); ++it)
-        it->setDefault();
+    for (Variable& var : m_data->m_vars)
+        var.setDefault();
 }
 
 bool SDL::State::isDefault() const
@@ -979,8 +979,8 @@ bool SDL::State::isDefault() const
     if (!m_data)
         return true;
 
-    for (auto it = m_data->m_vars.begin(); it != m_data->m_vars.end(); ++it) {
-        if (!it->isDefault())
+    for (Variable& var : m_data->m_vars) {
+        if (!var.isDefault())
             return false;
     }
     return true;
@@ -991,8 +991,8 @@ bool SDL::State::isDirty() const
     if (!m_data)
         return false;
 
-    for (auto it = m_data->m_vars.begin(); it != m_data->m_vars.end(); ++it) {
-        if (it->data()->m_flags & Variable::e_XIsDirty)
+    for (Variable& var : m_data->m_vars) {
+        if (var.data()->m_flags & Variable::e_XIsDirty)
             return true;
     }
     return false;

@@ -348,8 +348,8 @@ void DS::FileServer_Shutdown()
 {
     {
         std::lock_guard<std::mutex> clientGuard(s_clientMutex);
-        for (auto client_iter = s_clients.begin(); client_iter != s_clients.end(); ++client_iter)
-            DS::CloseSock((*client_iter)->m_sock);
+        for (FileServer_Private* client_iter : s_clients)
+            DS::CloseSock(client_iter->m_sock);
     }
 
     bool complete = false;
@@ -370,6 +370,6 @@ void DS::FileServer_DisplayClients()
     std::lock_guard<std::mutex> clientGuard(s_clientMutex);
     if (s_clients.size())
         fputs("File Server:\n", stdout);
-    for (auto client_iter = s_clients.begin(); client_iter != s_clients.end(); ++client_iter)
-        printf("  * %s\n", DS::SockIpAddress((*client_iter)->m_sock).c_str());
+    for (FileServer_Private* client_iter : s_clients)
+        printf("  * %s\n", DS::SockIpAddress(client_iter->m_sock).c_str());
 }

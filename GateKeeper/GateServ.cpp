@@ -225,8 +225,8 @@ void DS::GateKeeper_Shutdown()
 {
     {
         std::lock_guard<std::mutex> clientGuard(s_clientMutex);
-        for (auto client_iter = s_clients.begin(); client_iter != s_clients.end(); ++client_iter)
-            DS::CloseSock((*client_iter)->m_sock);
+        for (GateKeeper_Private* client_iter : s_clients)
+            DS::CloseSock(client_iter->m_sock);
     }
 
     bool complete = false;
@@ -247,6 +247,6 @@ void DS::GateKeeper_DisplayClients()
     std::lock_guard<std::mutex> clientGuard(s_clientMutex);
     if (s_clients.size())
         fputs("Gate Keeper:\n", stdout);
-    for (auto client_iter = s_clients.begin(); client_iter != s_clients.end(); ++client_iter)
-        printf("  * %s\n", DS::SockIpAddress((*client_iter)->m_sock).c_str());
+    for (GateKeeper_Private* client_iter : s_clients)
+        printf("  * %s\n", DS::SockIpAddress(client_iter->m_sock).c_str());
 }

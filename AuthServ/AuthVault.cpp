@@ -249,8 +249,8 @@ bool dm_vault_init()
             return false;
 
         std::list<AuthServer_AgeInfo> ages = configure_static_ages();
-        for (auto iter = ages.begin(); iter != ages.end(); ++iter) {
-            if (std::get<0>(v_create_age(*iter, e_AgePublic)) == 0)
+        for (AuthServer_AgeInfo& age : ages) {
+            if (std::get<0>(v_create_age(age, e_AgePublic)) == 0)
                 return false;
         }
     } else {
@@ -263,7 +263,7 @@ bool dm_vault_init()
 }
 
 std::tuple<uint32_t, uint32_t>
-v_create_age(AuthServer_AgeInfo age, uint32_t flags)
+v_create_age(AuthServer_AgeInfo& age, uint32_t flags)
 {
     if (age.m_ageId.isNull())
         age.m_ageId = gen_uuid();
@@ -1286,7 +1286,9 @@ bool v_find_public_ages(const DS::String& ageFilename, std::vector<Auth_PubAgeRe
         PQclear(result);
         return false;
     }
-    for (int i = 0; i < PQntuples(result); ++i) {
+
+    int count = PQntuples(result);
+    for (int i = 0; i < count; ++i) {
         Auth_PubAgeRequest::NetAgeInfo ai;
         ai.m_instance = DS::Uuid(PQgetvalue(result, i, 1));
         ai.m_instancename = PQgetvalue(result, i, 2);

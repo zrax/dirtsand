@@ -19,8 +19,8 @@
 
 MOUL::NotifyMsg::~NotifyMsg()
 {
-    for (size_t i=0; i<m_events.size(); ++i)
-        delete m_events[i];
+    for (MOUL::EventData* event : m_events)
+        delete event;
 }
 
 void MOUL::NotifyMsg::read(DS::Stream* stream)
@@ -31,12 +31,12 @@ void MOUL::NotifyMsg::read(DS::Stream* stream)
     m_state = stream->read<float>();
     m_id = stream->read<int32_t>();
 
-    for (size_t i=0; i<m_events.size(); ++i)
-        delete m_events[i];
+    for (MOUL::EventData* event : m_events)
+        delete event;
 
     m_events.resize(stream->read<uint32_t>());
-    for (size_t i=0; i<m_events.size(); ++i)
-        m_events[i] = EventData::Read(stream);
+    for (MOUL::EventData*& event : m_events)
+        event = EventData::Read(stream);
 }
 
 void MOUL::NotifyMsg::write(DS::Stream* stream)
@@ -48,6 +48,6 @@ void MOUL::NotifyMsg::write(DS::Stream* stream)
     stream->write<int32_t>(m_id);
 
     stream->write<uint32_t>(m_events.size());
-    for (size_t i=0; i<m_events.size(); ++i)
-        EventData::Write(stream, m_events[i]);
+    for (MOUL::EventData* event : m_events)
+        EventData::Write(stream, event);
 }

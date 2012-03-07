@@ -100,8 +100,8 @@ void MOUL::NetMsgSharedState::read(DS::Stream* stream)
     m_vars.resize(msgStream.m_stream.read<uint32_t>());
     m_serverMayDelete = msgStream.m_stream.read<bool>();
 
-    for (size_t i=0; i<m_vars.size(); ++i)
-        m_vars[i].read(&msgStream.m_stream);
+    for (GenericVar& var : m_vars)
+        var.read(&msgStream.m_stream);
     DS_DASSERT(msgStream.m_stream.atEof());
 
     m_lockRequest = stream->read<uint8_t>();
@@ -121,8 +121,8 @@ void MOUL::NetMsgSharedState::write(DS::Stream* stream)
     msgStream.m_stream.write<uint32_t>(m_vars.size());
     msgStream.m_stream.write<bool>(m_serverMayDelete);
 
-    for (size_t i=0; i<m_vars.size(); ++i)
-        m_vars[i].write(&msgStream.m_stream);
+    for (GenericVar& var : m_vars)
+        var.write(&msgStream.m_stream);
     msgStream.m_stream.seek(0, SEEK_SET);
     msgStream.write(stream);
 

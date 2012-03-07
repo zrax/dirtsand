@@ -149,17 +149,17 @@ void cb_login(AuthServer_Private& client)
         return;
     }
 
-    for (auto player_iter = msg.m_players.begin(); player_iter != msg.m_players.end(); ++player_iter) {
+    for (const AuthServer_PlayerInfo& player : msg.m_players) {
         START_REPLY(e_AuthToCli_AcctPlayerInfo);
         client.m_buffer.write<uint32_t>(transId);
-        client.m_buffer.write<uint32_t>(player_iter->m_playerId);
-        DS::StringBuffer<chr16_t> wstrbuf = player_iter->m_playerName.toUtf16();
+        client.m_buffer.write<uint32_t>(player.m_playerId);
+        DS::StringBuffer<chr16_t> wstrbuf = player.m_playerName.toUtf16();
         client.m_buffer.write<uint16_t>(wstrbuf.length());
         client.m_buffer.writeBytes(wstrbuf.data(), wstrbuf.length() * sizeof(chr16_t));
-        wstrbuf = player_iter->m_avatarModel.toUtf16();
+        wstrbuf = player.m_avatarModel.toUtf16();
         client.m_buffer.write<uint16_t>(wstrbuf.length());
         client.m_buffer.writeBytes(wstrbuf.data(), wstrbuf.length() * sizeof(chr16_t));
-        client.m_buffer.write<uint32_t>(player_iter->m_explorer);
+        client.m_buffer.write<uint32_t>(player.m_explorer);
         SEND_REPLY();
     }
 
@@ -433,11 +433,11 @@ void cb_nodeTree(AuthServer_Private& client)
         client.m_buffer.write<uint32_t>(0);
     } else {
         client.m_buffer.write<uint32_t>(msg.m_refs.size());
-        for (auto it = msg.m_refs.begin(); it != msg.m_refs.end(); ++it) {
-            client.m_buffer.write<uint32_t>(it->m_parent);
-            client.m_buffer.write<uint32_t>(it->m_child);
-            client.m_buffer.write<uint32_t>(it->m_owner);
-            client.m_buffer.write<uint8_t>(it->m_seen);
+        for (const DS::Vault::NodeRef& ref : msg.m_refs) {
+            client.m_buffer.write<uint32_t>(ref.m_parent);
+            client.m_buffer.write<uint32_t>(ref.m_child);
+            client.m_buffer.write<uint32_t>(ref.m_owner);
+            client.m_buffer.write<uint8_t>(ref.m_seen);
         }
     }
 
@@ -470,8 +470,8 @@ void cb_nodeFind(AuthServer_Private& client)
         client.m_buffer.write<uint32_t>(0);
     } else {
         client.m_buffer.write<uint32_t>(msg.m_nodes.size());
-        for (size_t i=0; i<msg.m_nodes.size(); ++i)
-            client.m_buffer.write<uint32_t>(msg.m_nodes[i]);
+        for (uint32_t node : msg.m_nodes)
+            client.m_buffer.write<uint32_t>(node);
     }
 
     SEND_REPLY();
@@ -719,7 +719,7 @@ void cb_scoreGetScores(AuthServer_Private& client)
                         (Auth_GetScores::GameScore::BaseStride +
                         ((name.length() + 1) * sizeof(chr16_t)));
         client.m_buffer.write<uint32_t>(bufsz);
-        for (auto score : msg.m_scores) {
+        for (const Auth_GetScores::GameScore& score : msg.m_scores) {
             client.m_buffer.write<uint32_t>(score.m_scoreId);
             client.m_buffer.write<uint32_t>(msg.m_owner);
             client.m_buffer.write<uint32_t>(score.m_createTime);
@@ -788,8 +788,8 @@ void cb_getPublicAges(AuthServer_Private& client)
         client.m_buffer.write<uint32_t>(0);
     } else {
         client.m_buffer.write<uint32_t>(msg.m_ages.size());
-        for (size_t i = 0; i < msg.m_ages.size(); i++) {
-            client.m_buffer.writeBytes(msg.m_ages[i].m_instance.m_bytes, sizeof(client.m_acctUuid.m_bytes));
+        for (const Auth_PubAgeRequest::NetAgeInfo& age : msg.m_ages) {
+            client.m_buffer.writeBytes(age.m_instance.m_bytes, sizeof(client.m_acctUuid.m_bytes));
 
             chr16_t strbuffer[2048];
             DS::StringBuffer<chr16_t> buf;
@@ -801,28 +801,28 @@ void cb_getPublicAges(AuthServer_Private& client)
             strbuffer[copylen] = 0;
             client.m_buffer.writeBytes(strbuffer, 128);
 
-            buf = msg.m_ages[i].m_instancename.toUtf16();
+            buf = age.m_instancename.toUtf16();
             copylen = buf.length() < 64 ? buf.length() : 63;
             memcpy(strbuffer, buf.data(), copylen*sizeof(chr16_t));
             strbuffer[copylen] = 0;
             client.m_buffer.writeBytes(strbuffer, 128);
 
-            buf = msg.m_ages[i].m_username.toUtf16();
+            buf = age.m_username.toUtf16();
             copylen = buf.length() < 64 ? buf.length() : 63;
             memcpy(strbuffer, buf.data(), copylen*sizeof(chr16_t));
             strbuffer[copylen] = 0;
             client.m_buffer.writeBytes(strbuffer, 128);
 
-            buf = msg.m_ages[i].m_description.toUtf16();
+            buf = age.m_description.toUtf16();
             copylen = buf.length() < 1024 ? buf.length() : 1023;
             memcpy(strbuffer, buf.data(), copylen*sizeof(chr16_t));
             strbuffer[copylen] = 0;
             client.m_buffer.writeBytes(strbuffer, 2048);
 
-            client.m_buffer.write<uint32_t>(msg.m_ages[i].m_sequence);
-            client.m_buffer.write<uint32_t>(msg.m_ages[i].m_language);
-            client.m_buffer.write<uint32_t>(msg.m_ages[i].m_population);
-            client.m_buffer.write<uint32_t>(msg.m_ages[i].m_curPopulation);
+            client.m_buffer.write<uint32_t>(age.m_sequence);
+            client.m_buffer.write<uint32_t>(age.m_language);
+            client.m_buffer.write<uint32_t>(age.m_population);
+            client.m_buffer.write<uint32_t>(age.m_curPopulation);
         }
     }
 
@@ -1028,9 +1028,9 @@ void DS::AuthServer_DisplayClients()
     std::lock_guard<std::mutex> authClientGuard(s_authClientMutex);
     if (s_authClients.size())
         fputs("Auth Server:\n", stdout);
-    for (auto client_iter = s_authClients.begin(); client_iter != s_authClients.end(); ++client_iter) {
-        printf("  * %s {%s}\n", DS::SockIpAddress((*client_iter)->m_sock).c_str(),
-               (*client_iter)->m_acctUuid.toString().c_str());
+    for (AuthServer_Private* client_iter : s_authClients) {
+        printf("  * %s {%s}\n", DS::SockIpAddress(client_iter->m_sock).c_str(),
+               client_iter->m_acctUuid.toString().c_str());
     }
 }
 

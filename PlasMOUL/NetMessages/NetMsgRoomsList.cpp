@@ -22,9 +22,9 @@ void MOUL::NetMsgRoomsList::read(DS::Stream* stream)
     NetMessage::read(stream);
 
     m_rooms.resize(stream->read<uint32_t>());
-    for (size_t i=0; i<m_rooms.size(); ++i) {
-        m_rooms[i].m_location.read(stream);
-        m_rooms[i].m_name = stream->readPString<uint16_t>();
+    for (Room& room : m_rooms) {
+        room.m_location.read(stream);
+        room.m_name = stream->readPString<uint16_t>();
     }
 }
 
@@ -33,9 +33,9 @@ void MOUL::NetMsgRoomsList::write(DS::Stream* stream)
     NetMessage::write(stream);
 
     stream->write<uint32_t>(m_rooms.size());
-    for (size_t i=0; i<m_rooms.size(); ++i) {
-        m_rooms[i].m_location.write(stream);
-        stream->writePString<uint16_t>(m_rooms[i].m_name);
+    for (Room& room : m_rooms) {
+        room.m_location.write(stream);
+        stream->writePString<uint16_t>(room.m_name);
     }
 }
 

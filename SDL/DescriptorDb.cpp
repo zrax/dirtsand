@@ -48,21 +48,21 @@ bool SDL::DescriptorDb::LoadDescriptors(const char* sdlpath)
         DS::String filename = DS::String::Format("%s/%s", sdlpath, dirls[i]->d_name);
         if (parser.open(filename.c_str())) {
             std::list<StateDescriptor> descriptors = parser.parse();
-            for (auto it = descriptors.begin(); it != descriptors.end(); ++it) {
+            for (const StateDescriptor& desc : descriptors) {
 #ifdef DEBUG
-                descmap_t::iterator namei = s_descriptors.find(it->m_name);
+                descmap_t::iterator namei = s_descriptors.find(desc.m_name);
                 if (namei != s_descriptors.end()) {
-                    if (namei->second.find(it->m_version) != namei->second.end()) {
+                    if (namei->second.find(desc.m_version) != namei->second.end()) {
                         fprintf(stderr, "[SDL] Warning: Duplicate descriptor version for %s\n",
-                                it->m_name.c_str());
+                                desc.m_name.c_str());
                     }
                 }
 #endif
-                s_descriptors[it->m_name][it->m_version] = *it;
+                s_descriptors[desc.m_name][desc.m_version] = desc;
 
                 // Keep the highest version in -1
-                if (s_descriptors[it->m_name][-1].m_version < it->m_version)
-                    s_descriptors[it->m_name][-1] = *it;
+                if (s_descriptors[desc.m_name][-1].m_version < desc.m_version)
+                    s_descriptors[desc.m_name][-1] = desc;
             }
         }
         parser.close();

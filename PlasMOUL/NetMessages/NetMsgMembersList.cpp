@@ -94,8 +94,8 @@ void MOUL::NetMsgMembersList::read(DS::Stream* stream)
     NetMessage::read(stream);
 
     m_members.resize(stream->read<uint16_t>());
-    for (size_t i=0; i<m_members.size(); ++i)
-        m_members[i].read(stream);
+    for (MOUL::NetMsgMemberInfo& info : m_members)
+        info.read(stream);
 }
 
 void MOUL::NetMsgMembersList::write(DS::Stream* stream)
@@ -103,8 +103,8 @@ void MOUL::NetMsgMembersList::write(DS::Stream* stream)
     NetMessage::write(stream);
 
     stream->write<uint16_t>(m_members.size());
-    for (size_t i=0; i<m_members.size(); ++i)
-        m_members[i].write(stream);
+    for (MOUL::NetMsgMemberInfo& info : m_members)
+        info.write(stream);
 }
 
 void MOUL::NetMsgMemberUpdate::read(DS::Stream* stream)

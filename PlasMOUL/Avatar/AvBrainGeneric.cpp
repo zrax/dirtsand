@@ -20,8 +20,8 @@
 
 MOUL::AvBrainGeneric::~AvBrainGeneric()
 {
-    for (auto it = m_stages.begin(); it != m_stages.end(); ++it)
-        (*it)->unref();
+    for (MOUL::AnimStage* stage : m_stages)
+        stage->unref();
     m_startMessage->unref();
     m_endMessage->unref();
 }
@@ -30,13 +30,13 @@ void MOUL::AvBrainGeneric::read(DS::Stream* stream)
 {
     MOUL::ArmatureBrain::read(stream);
 
-    for (auto it = m_stages.begin(); it != m_stages.end(); ++it)
-        (*it)->unref();
+    for (MOUL::AnimStage* stage : m_stages)
+        stage->unref();
 
     m_stages.resize(stream->read<uint32_t>());
-    for (size_t i = 0; i < m_stages.size(); ++i) {
-        m_stages[i] = Factory::Read<AnimStage>(stream);
-        m_stages[i]->readAux(stream);
+    for (MOUL::AnimStage*& stage : m_stages) {
+        stage = Factory::Read<AnimStage>(stream);
+        stage->readAux(stream);
     }
     m_curStage = stream->read<int32_t>();
 
@@ -69,9 +69,9 @@ void MOUL::AvBrainGeneric::write(DS::Stream* stream)
     MOUL::ArmatureBrain::write(stream);
 
     stream->write<uint32_t>(m_stages.size());
-    for (size_t i = 0; i < m_stages.size(); ++i) {
-        Factory::WriteCreatable(stream, m_stages[i]);
-        m_stages[i]->writeAux(stream);
+    for (MOUL::AnimStage* stage : m_stages) {
+        Factory::WriteCreatable(stream, stage);
+        stage->writeAux(stream);
     }
     stream->write<int32_t>(m_curStage);
 

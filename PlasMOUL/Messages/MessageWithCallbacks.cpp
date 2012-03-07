@@ -20,20 +20,20 @@
 
 MOUL::MessageWithCallbacks::~MessageWithCallbacks()
 {
-    for (auto it = m_callbacks.begin(); it != m_callbacks.end(); ++it)
-        (*it)->unref();
+    for (MOUL::Message* callback : m_callbacks)
+        callback->unref();
 }
 
 void MOUL::MessageWithCallbacks::read(DS::Stream* stream)
 {
     Message::read(stream);
 
-    for (auto it = m_callbacks.begin(); it != m_callbacks.end(); ++it)
-        (*it)->unref();
+    for (MOUL::Message* callback : m_callbacks)
+        callback->unref();
 
     m_callbacks.resize(stream->read<uint32_t>());
-    for (size_t i = 0; i < m_callbacks.capacity(); ++i)
-        m_callbacks[i] = MOUL::Factory::Read<MOUL::Message>(stream);
+    for (MOUL::Message*& callback : m_callbacks)
+        callback = MOUL::Factory::Read<MOUL::Message>(stream);
 }
 
 void MOUL::MessageWithCallbacks::write(DS::Stream* stream)
@@ -41,14 +41,14 @@ void MOUL::MessageWithCallbacks::write(DS::Stream* stream)
     Message::write(stream);
 
     stream->write<uint32_t>(m_callbacks.size());
-    for (size_t i = 0; i < m_callbacks.size(); ++i)
-        MOUL::Factory::WriteCreatable(stream, m_callbacks[i]);
+    for (MOUL::Message* callback : m_callbacks)
+        MOUL::Factory::WriteCreatable(stream, callback);
 }
 
 bool MOUL::MessageWithCallbacks::makeSafeForNet()
 {
-    for (auto it = m_callbacks.begin(); it != m_callbacks.end(); ++it) {
-        if (!(*it)->makeSafeForNet())
+    for (MOUL::Message* callback : m_callbacks) {
+        if (!callback->makeSafeForNet())
             return false;
     }
     return true;
