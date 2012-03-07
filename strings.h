@@ -52,13 +52,19 @@ namespace DS
     class StringBuffer
     {
     public:
-        StringBuffer() : m_buffer(0) { }
+        StringBuffer() : m_buffer(nullptr) { }
 
         StringBuffer(const StringBuffer<char_type>& copy)
             : m_buffer(copy.m_buffer)
         {
             if (m_buffer)
                 ++m_buffer->m_refs;
+        }
+
+        StringBuffer(StringBuffer<char_type>&& move)
+            : m_buffer(move.m_buffer)
+        {
+            move.m_buffer = nullptr;
         }
 
         ~StringBuffer<char_type>()
@@ -74,6 +80,15 @@ namespace DS
             if (m_buffer && --m_buffer->m_refs == 0)
                 delete m_buffer;
             m_buffer = copy.m_buffer;
+            return *this;
+        }
+
+        StringBuffer<char_type>& operator=(StringBuffer<char_type>&& move)
+        {
+            if (m_buffer != move.m_buffer && m_buffer && --m_buffer->m_refs == 0)
+                delete m_buffer;
+            m_buffer = move.m_buffer;
+            move.m_buffer = nullptr;
             return *this;
         }
 
@@ -107,12 +122,18 @@ namespace DS
         String() { }
         String(const char* strconst) { operator=(strconst); }
         String(const String& copy) : m_data(copy.m_data) { }
+        String(String&& move) : m_data(move.m_data) { }
         virtual ~String() { }
 
         String& operator=(const char* strconst);
         String& operator=(const String& copy)
         {
             m_data = copy.m_data;
+            return *this;
+        }
+        String& operator=(String&& move)
+        {
+            m_data = move.m_data;
             return *this;
         }
 
