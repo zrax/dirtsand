@@ -47,7 +47,7 @@ void dm_htserv()
 
             std::list<DS::String> lines;
             for ( ;; ) {
-                char* buffer = 0;
+                char* buffer = nullptr;
                 DS::String scratch;
                 try {
                     size_t bufSize = DS::PeekSize(client);

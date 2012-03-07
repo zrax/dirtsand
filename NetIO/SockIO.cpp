@@ -77,7 +77,7 @@ DS::SocketHandle DS::BindSocket(const char* address, const char* port)
     DS_PASSERT(result == 0);
 
     addrinfo* addr_iter;
-    for (addr_iter = addrList; addr_iter != 0; addr_iter = addr_iter->ai_next) {
+    for (addr_iter = addrList; addr_iter != nullptr; addr_iter = addr_iter->ai_next) {
         sockfd = socket(addr_iter->ai_family, addr_iter->ai_socktype,
                         addr_iter->ai_protocol);
         if (sockfd == -1)
@@ -178,9 +178,9 @@ uint32_t DS::GetAddress4(const char* lookup)
     info.ai_flags = 0;
 
     addrinfo* addrList;
-    int result = getaddrinfo(lookup, 0, &info, &addrList);
+    int result = getaddrinfo(lookup, nullptr, &info, &addrList);
     DS_PASSERT(result == 0);
-    DS_PASSERT(addrList != 0);
+    DS_PASSERT(addrList != nullptr);
     uint32_t addr = reinterpret_cast<sockaddr_in*>(addrList->ai_addr)->sin_addr.s_addr;
     freeaddrinfo(addrList);
 

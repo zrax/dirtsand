@@ -93,8 +93,8 @@ namespace DS
         }
 
         size_t length() const { return m_buffer ? m_buffer->m_length : 0; }
-        const char_type* data() const { return m_buffer ? m_buffer->m_string : 0; }
-        bool isNull() const { return m_buffer == 0; }
+        const char_type* data() const { return m_buffer ? m_buffer->m_string : nullptr; }
+        bool isNull() const { return m_buffer == nullptr; }
         bool isEmpty() const { return length() == 0; }
 
     private:

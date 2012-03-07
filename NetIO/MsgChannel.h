@@ -36,7 +36,7 @@ namespace DS
         MsgChannel();
         ~MsgChannel();
 
-        void putMessage(int type, void* payload = 0);
+        void putMessage(int type, void* payload = nullptr);
         FifoMessage getMessage();
 
     private:

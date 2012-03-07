@@ -40,9 +40,9 @@ static void init_rand()
             uint8_t buffer[2048 - sizeof(pid_t) - sizeof(timeval)];
         } _random;
         _random.mypid = getpid();
-        gettimeofday(&_random.now, 0);
+        gettimeofday(&_random.now, nullptr);
         FILE* urand = fopen("/dev/urandom", "rb");
-        DS_PASSERT(urand != 0);
+        DS_PASSERT(urand != nullptr);
         fread(_random.buffer, 1, sizeof(_random.buffer), urand);
         fclose(urand);
         RAND_seed(&_random, sizeof(_random));
@@ -56,14 +56,14 @@ void DS::GenPrimeKeys(uint8_t* K, uint8_t* N)
     init_rand();
 
     while (BN_num_bytes(bn_key) != 64) {
-        BN_generate_prime(bn_key, 512, 1, 0, 0, 0, 0);
+        BN_generate_prime(bn_key, 512, 1, nullptr, nullptr, nullptr, nullptr);
         putc('.', stdout);
         fflush(stdout);
     }
     BN_bn2bin(bn_key, reinterpret_cast<unsigned char*>(K));
     BN_set_word(bn_key, 0);
     while (BN_num_bytes(bn_key) != 64) {
-        BN_generate_prime(bn_key, 512, 1, 0, 0, 0, 0);
+        BN_generate_prime(bn_key, 512, 1, nullptr, nullptr, nullptr, nullptr);
         putc('.', stdout);
         fflush(stdout);
     }

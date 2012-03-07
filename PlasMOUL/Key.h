@@ -117,7 +117,7 @@ namespace MOUL
         static Key AvatarMgrKey;
         static Key NetClientMgrKey;
 
-        Key() : m_data(0) { }
+        Key() : m_data(nullptr) { }
 
         Key(const Key& copy) : m_data(copy.m_data)
         {
@@ -174,7 +174,7 @@ namespace MOUL
 
         bool operator==(const Key& other) const { return m_data == other.m_data; }
         bool operator!=(const Key& other) const { return m_data != other.m_data; }
-        bool isNull() const { return m_data == 0; }
+        bool isNull() const { return m_data == nullptr; }
 
         Location location() const { return m_data ? m_data->m_uoid.m_location : Location::Invalid; }
         uint8_t loadMask() const { return m_data ? m_data->m_uoid.m_loadMask : 0xFF; }

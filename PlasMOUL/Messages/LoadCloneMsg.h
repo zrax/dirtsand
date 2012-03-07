@@ -38,7 +38,7 @@ namespace MOUL
     protected:
         LoadCloneMsg(uint16_t type)
             : Message(type), m_validMsg(false), m_isLoading(false),
-              m_userData(0), m_originPlayerId(0), m_triggerMsg(0) { }
+              m_userData(0), m_originPlayerId(0), m_triggerMsg(nullptr) { }
 
         virtual ~LoadCloneMsg()
         {

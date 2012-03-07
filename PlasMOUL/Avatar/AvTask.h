@@ -86,7 +86,7 @@ namespace MOUL
         ArmatureBrain* m_brain;
 
     protected:
-        AvTaskBrain(uint16_t type) : AvTask(type), m_brain(0) { }
+        AvTaskBrain(uint16_t type) : AvTask(type), m_brain(nullptr) { }
 
         virtual ~AvTaskBrain()
         {

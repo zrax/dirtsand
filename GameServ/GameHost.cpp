@@ -94,7 +94,7 @@ void dm_game_shutdown(GameHost_Private* host)
         PQexecParams(host->m_postgres,
                 "DELETE FROM game.\"Servers\" "
                 "    WHERE \"idx\"=$1;",
-                1, 0, params.m_values, 0, 0, 0);
+                1, nullptr, params.m_values, nullptr, nullptr, 0);
     }
     PQfinish(host->m_postgres);
     delete host;
@@ -247,7 +247,7 @@ void dm_game_disconnect(GameHost_Private* host, Game_ClientMessage* msg)
     //       As it is, there might be a race condition if another player is
     //       joining just as the last player is leaving.
     if (host->m_clients.size() == 0)
-        host->m_channel.putMessage(e_GameShutdown, 0);
+        host->m_channel.putMessage(e_GameShutdown);
 }
 
 void dm_game_join(GameHost_Private* host, Game_ClientMessage* msg)
@@ -422,7 +422,7 @@ void dm_read_sdl(GameHost_Private* host, GameClient_Private* client,
             PGresult* result = PQexecParams(host->m_postgres,
                 "SELECT idx FROM game.\"AgeStates\""
                 "    WHERE \"ServerIdx\"=$1 AND \"Descriptor\"=$2 AND \"ObjectKey\"=$3",
-                3, 0, parms.m_values, 0, 0, 0);
+                3, nullptr, parms.m_values, nullptr, nullptr, 0);
             if (PQresultStatus(result) != PGRES_TUPLES_OK) {
                 fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                         __FILE__, __LINE__, PQerrorMessage(host->m_postgres));
@@ -435,7 +435,7 @@ void dm_read_sdl(GameHost_Private* host, GameClient_Private* client,
                     "INSERT INTO game.\"AgeStates\""
                     "    (\"ServerIdx\", \"Descriptor\", \"ObjectKey\", \"SdlBlob\")"
                     "    VALUES ($1, $2, $3, $4)",
-                    4, 0, parms.m_values, 0, 0, 0);
+                    4, nullptr, parms.m_values, nullptr, nullptr, 0);
                 if (PQresultStatus(result) != PGRES_COMMAND_OK) {
                     fprintf(stderr, "%s:%d:\n    Postgres INSERT error: %s\n",
                             __FILE__, __LINE__, PQerrorMessage(host->m_postgres));
@@ -451,7 +451,7 @@ void dm_read_sdl(GameHost_Private* host, GameClient_Private* client,
                 result = PQexecParams(host->m_postgres,
                     "UPDATE game.\"AgeStates\""
                     "    SET \"SdlBlob\"=$2 WHERE idx=$1",
-                    2, 0, parms.m_values, 0, 0, 0);
+                    2, nullptr, parms.m_values, nullptr, nullptr, 0);
                 if (PQresultStatus(result) != PGRES_COMMAND_OK) {
                     fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                             __FILE__, __LINE__, PQerrorMessage(host->m_postgres));
@@ -577,7 +577,7 @@ void dm_send_members(GameHost_Private* host, GameClient_Private* client)
 
                 MOUL::NetMsgSDLState* state = MOUL::NetMsgSDLState::Create();
                 state->m_contentFlags = MOUL::NetMessage::e_HasTimeSent
-                                    | MOUL::NetMessage::e_NeedsReliableSend;
+                                      | MOUL::NetMessage::e_NeedsReliableSend;
                 state->m_timestamp.setNow();
                 // Blame Cyan for these odd flags
                 state->m_isInitial = true;
@@ -636,7 +636,7 @@ void dm_load_clone(GameHost_Private* host, GameClient_Private* client,
 void dm_game_message(GameHost_Private* host, Game_PropagateMessage* msg)
 {
     DS::BlobStream stream(msg->m_message);
-    MOUL::NetMessage* netmsg = 0;
+    MOUL::NetMessage* netmsg = nullptr;
     try {
         netmsg = MOUL::Factory::Read<MOUL::NetMessage>(&stream);
     } catch (const MOUL::FactoryException&) {
@@ -833,7 +833,7 @@ GameHost_Private* start_game_host(uint32_t ageMcpId)
     if (PQstatus(postgres) != CONNECTION_OK) {
         fprintf(stderr, "Error connecting to postgres: %s", PQerrorMessage(postgres));
         PQfinish(postgres);
-        return 0;
+        return nullptr;
     }
 
     PostgresStrings<1> parms;
@@ -841,33 +841,33 @@ GameHost_Private* start_game_host(uint32_t ageMcpId)
     PGresult* result = PQexecParams(postgres,
             "SELECT \"AgeUuid\", \"AgeFilename\", \"AgeIdx\", \"SdlIdx\", \"Temporary\""
             "    FROM game.\"Servers\" WHERE idx=$1",
-            1, 0, parms.m_values, 0, 0, 0);
+            1, nullptr, parms.m_values, nullptr, nullptr, 0);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(postgres));
         PQclear(result);
         PQfinish(postgres);
-        return 0;
+        return nullptr;
     }
     if (PQntuples(result) == 0) {
         fprintf(stderr, "[Game] Age MCP %u not found\n", ageMcpId);
         PQclear(result);
         PQfinish(postgres);
-        return 0;
+        return nullptr;
     } else {
         DS_DASSERT(PQntuples(result) == 1);
 
         GameHost_Private* host = new GameHost_Private();
         host->m_instanceId = PQgetvalue(result, 0, 0);
         host->m_ageFilename = PQgetvalue(result, 0, 1);
-        host->m_ageIdx = strtoul(PQgetvalue(result, 0, 2), 0, 10);
+        host->m_ageIdx = strtoul(PQgetvalue(result, 0, 2), nullptr, 10);
         host->m_gameMaster = 0;
         host->m_serverIdx = ageMcpId;
         host->m_postgres = postgres;
         host->m_temp = strcmp("t", PQgetvalue(result, 0, 4)) == 0;
 
         // Fetch the vault's SDL blob
-        unsigned long sdlidx = strtoul(PQgetvalue(result, 0, 3), 0, 10);
+        unsigned long sdlidx = strtoul(PQgetvalue(result, 0, 3), nullptr, 10);
         if (sdlidx) {
             Auth_NodeInfo sdlFind;
             AuthClient_Private fakeClient;
@@ -880,7 +880,7 @@ GameHost_Private* start_game_host(uint32_t ageMcpId)
                 PQclear(result);
                 PQfinish(postgres);
                 delete host;
-                return 0;
+                return nullptr;
             }
             host->m_sdlIdx = sdlFind.m_node.m_NodeIdx;
             try {
@@ -905,7 +905,7 @@ GameHost_Private* start_game_host(uint32_t ageMcpId)
         PGresult* result = PQexecParams(host->m_postgres,
                 "SELECT \"Descriptor\", \"ObjectKey\", \"SdlBlob\""
                 "    FROM game.\"AgeStates\" WHERE \"ServerIdx\"=$1",
-                1, 0, parms.m_values, 0, 0, 0);
+                1, nullptr, parms.m_values, nullptr, nullptr, 0);
         if (PQresultStatus(result) != PGRES_TUPLES_OK) {
             fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                     __FILE__, __LINE__, PQerrorMessage(host->m_postgres));

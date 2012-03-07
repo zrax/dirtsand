@@ -72,8 +72,9 @@ namespace MOUL
         Command m_command;
 
     protected:
-        AvCoopMsg(uint16_t type) : Message(type), m_coordinator(0), m_initiatorId(0),
-            m_initiatorSerial(0), m_command(e_None) { }
+        AvCoopMsg(uint16_t type)
+            : Message(type), m_coordinator(nullptr), m_initiatorId(0),
+              m_initiatorSerial(0), m_command(e_None) { }
 
         virtual ~AvCoopMsg()
         {

@@ -384,28 +384,28 @@ int32_t DS::String::toInt(int base) const
 {
     if (isEmpty())
         return 0;
-    return static_cast<int32_t>(strtol(c_str(), 0, base));
+    return static_cast<int32_t>(strtol(c_str(), nullptr, base));
 }
 
 uint32_t DS::String::toUint(int base) const
 {
     if (isEmpty())
         return 0;
-    return static_cast<uint32_t>(strtoul(c_str(), 0, base));
+    return static_cast<uint32_t>(strtoul(c_str(), nullptr, base));
 }
 
 float DS::String::toFloat() const
 {
     if (isEmpty())
         return 0;
-    return strtof(c_str(), 0);
+    return strtof(c_str(), nullptr);
 }
 
 double DS::String::toDouble() const
 {
     if (isEmpty())
         return 0;
-    return strtod(c_str(), 0);
+    return strtod(c_str(), nullptr);
 }
 
 bool DS::String::toBool() const

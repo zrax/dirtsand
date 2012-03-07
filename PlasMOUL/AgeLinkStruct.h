@@ -209,7 +209,9 @@ namespace MOUL
         bool m_amCcr;
         DS::String m_parentAgeFilename;
 
-        AgeLinkStruct(uint16_t type) : Creatable(type), m_flags(e_HasSpawnPt), m_ageInfo(0), m_linkingRules(0), m_amCcr(false) { }
+        AgeLinkStruct(uint16_t type)
+            : Creatable(type), m_flags(e_HasSpawnPt), m_ageInfo(nullptr),
+              m_linkingRules(0), m_amCcr(false) { }
 
         virtual ~AgeLinkStruct()
         {

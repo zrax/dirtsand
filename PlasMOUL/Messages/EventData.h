@@ -117,7 +117,7 @@ namespace MOUL
     class FacingEventData : public EventData
     {
     public:
-        FacingEventData() : EventData(e_EvtFacing), m_dot(0), m_enabled(false) { }
+        FacingEventData() : EventData(e_EvtFacing), m_dot(0.0f), m_enabled(false) { }
 
         Key m_facer, m_facee;
         float m_dot;

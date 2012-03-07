@@ -22,8 +22,11 @@ void MOUL::AvTaskMsg::read(DS::Stream* stream)
 {
     Message::read(stream);
 
+    m_task->unref();
     if (stream->read<bool>())
         m_task = Factory::Read<AvTask>(stream);
+    else
+        m_task = nullptr;
 }
 
 void MOUL::AvTaskMsg::write(DS::Stream* stream)

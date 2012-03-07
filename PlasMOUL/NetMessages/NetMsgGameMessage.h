@@ -37,7 +37,7 @@ namespace MOUL
     protected:
         NetMsgGameMessage(uint16_t type)
             : NetMessage(type), m_compression(NetMsgStream::e_CompressNone),
-              m_message(0) { }
+              m_message(nullptr) { }
 
         virtual ~NetMsgGameMessage()
         {

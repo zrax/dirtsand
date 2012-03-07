@@ -68,9 +68,9 @@ namespace MOUL
 
     protected:
         AnimCmdMsg(uint16_t type)
-            : MessageWithCallbacks(type), m_begin(0.0), m_end(0.0),
-              m_loopEnd(0.0), m_loopBegin(0.0), m_speed(0.0),
-              m_speedChangeRate(0.0), m_time(0.0) { }
+            : MessageWithCallbacks(type), m_begin(0.0f), m_end(0.0f),
+              m_loopEnd(0.0f), m_loopBegin(0.0f), m_speed(0.0f),
+              m_speedChangeRate(0.0f), m_time(0.0f) { }
     };
 };
 
