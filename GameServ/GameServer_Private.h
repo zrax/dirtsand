@@ -101,7 +101,7 @@ struct Game_AgeInfo
     int32_t m_seqPrefix;
 
     Game_AgeInfo()
-        : m_startTime(0), m_lingerTime(180), m_dayLength(24), m_maxCapacity(10),
+        : m_startTime(0), m_lingerTime(180), m_dayLength(24.0), m_maxCapacity(10),
           m_seqPrefix(0) { }
 };
 typedef std::unordered_map<DS::String, Game_AgeInfo, DS::StringHash> agemap_t;

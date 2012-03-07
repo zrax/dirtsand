@@ -30,7 +30,7 @@ DS::ShaHash::ShaHash(const char* struuid)
     buffer[8] = 0;
     for (size_t i=0; i<5; ++i) {
         memcpy(buffer, struuid + (i * 8), 8);
-        m_data[i] = strtoul(buffer, 0, 16);
+        m_data[i] = strtoul(buffer, nullptr, 16);
         m_data[i] = SWAP_BYTES(m_data[i]);
     }
 }

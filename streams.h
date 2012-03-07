@@ -205,16 +205,16 @@ namespace DS
         struct _ref {
             const uint8_t* m_buffer;
             size_t m_size;
-            int m_refs;
+            std::atomic_int m_refs;
 
             _ref(const uint8_t* buffer, size_t size)
                 : m_buffer(buffer), m_size(size), m_refs(1) { }
             ~_ref() { delete[] m_buffer; }
 
-            void ref() { __sync_fetch_and_add(&m_refs, 1); }
+            void ref() { ++m_refs; }
             void unref()
             {
-                if (__sync_add_and_fetch(&m_refs, -1) == 0)
+                if (--m_refs == 0)
                     delete this;
             }
         }* m_data;

@@ -106,7 +106,7 @@ void cb_join(GameClient_Private& client)
 
     uint32_t mcpId = DS::CryptRecvValue<uint32_t>(client.m_sock, client.m_crypt);
     client.m_host = find_game_host(mcpId);
-    DS_PASSERT(client.m_host != 0);
+    DS_PASSERT(client.m_host != nullptr);
 
     Game_ClientMessage msg;
     msg.m_client = &client;
@@ -218,8 +218,8 @@ void wk_gameWorker(DS::SocketHandle sockp)
 {
     GameClient_Private client;
     client.m_sock = sockp;
-    client.m_host = 0;
-    client.m_crypt = 0;
+    client.m_host = nullptr;
+    client.m_crypt = nullptr;
     client.m_isLoaded = false;
 
     try {
@@ -402,7 +402,7 @@ bool DS::GameServer_UpdateVaultSDL(const DS::Vault::Node& node, uint32_t ageMcpI
 {
     s_gameHostMutex.lock();
     hostmap_t::iterator host_iter = s_gameHosts.find(ageMcpId);
-    GameHost_Private* host = 0;
+    GameHost_Private* host = nullptr;
     if (host_iter != s_gameHosts.end())
         host = host_iter->second;
     s_gameHostMutex.unlock();
