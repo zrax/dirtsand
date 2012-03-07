@@ -125,6 +125,11 @@ namespace MOUL
                 ++m_data->m_refs;
         }
 
+        Key(Key&& move) : m_data(std::move(move.m_data))
+        {
+            move.m_data = nullptr;
+        }
+
         Key(const Uoid& copy)
         {
             m_data = new _keydata;
@@ -145,6 +150,15 @@ namespace MOUL
             if (m_data && (--m_data->m_refs == 0))
                 delete m_data;
             m_data = copy.m_data;
+            return *this;
+        }
+
+        Key& operator=(Key&& move)
+        {
+            if (m_data && (--m_data->m_refs == 0))
+                delete m_data;
+            m_data = std::move(move.m_data);
+            move.m_data = nullptr;
             return *this;
         }
 

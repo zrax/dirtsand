@@ -72,7 +72,9 @@ namespace MOUL
 
         /* Prevent stack copying of creatables */
         Creatable(const Creatable& copy) = delete;
+        Creatable(Creatable&& move) = delete;
         void operator=(const Creatable& copy) = delete;
+        void operator=(Creatable&& move) = delete;
     };
 }
 

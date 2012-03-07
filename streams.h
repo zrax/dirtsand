@@ -146,7 +146,7 @@ namespace DS
     class Blob
     {
     public:
-        Blob() : m_data(0) { }
+        Blob() : m_data(nullptr) { }
 
         Blob(const uint8_t* buffer, size_t size)
         {
@@ -159,6 +159,11 @@ namespace DS
         {
             if (m_data)
                 m_data->ref();
+        }
+
+        Blob(Blob&& move) : m_data(std::move(move.m_data))
+        {
+            move.m_data = nullptr;
         }
 
         ~Blob()
@@ -174,6 +179,15 @@ namespace DS
             if (m_data)
                 m_data->unref();
             m_data = other.m_data;
+            return *this;
+        }
+
+        Blob& operator=(Blob&& move)
+        {
+            if (m_data)
+                m_data->unref();
+            m_data = std::move(move.m_data);
+            move.m_data = nullptr;
             return *this;
         }
 
@@ -230,8 +244,8 @@ namespace DS
     class BufferStream : public Stream
     {
     public:
-        BufferStream() : m_buffer(0), m_position(0), m_size(0), m_alloc(0), m_refs(1) { }
-        BufferStream(const void* data, size_t size) : m_buffer(0), m_refs(1) { set(data, size); }
+        BufferStream() : m_buffer(nullptr), m_position(0), m_size(0), m_alloc(0), m_refs(1) { }
+        BufferStream(const void* data, size_t size) : m_buffer(nullptr), m_refs(1) { set(data, size); }
         virtual ~BufferStream() { delete[] m_buffer; }
 
         virtual ssize_t readBytes(void* buffer, size_t count);
@@ -269,8 +283,10 @@ namespace DS
         size_t m_size, m_alloc;
         std::atomic_int m_refs;
 
-        BufferStream(const BufferStream& copy) { }
-        void operator=(const BufferStream& copy) { }
+        BufferStream(const BufferStream& copy) = delete;
+        BufferStream(BufferStream&& move) = delete;
+        void operator=(const BufferStream& copy) = delete;
+        void operator=(BufferStream&& move) = delete;
     };
 }
 
