@@ -80,3 +80,17 @@ struct PostgresStrings
 #endif
     }
 };
+
+namespace DS
+{
+    template <typename... _Args>
+    PGresult* PQexecVA(PGconn* conn, const char* command, _Args&&... args)
+    {
+        PostgresStrings<sizeof...(_Args)> parms;
+        size_t i = 0;
+        auto dummy = { (parms.set(i, std::forward<_Args>(args)), ++i)... };
+        (void)dummy;
+        return ::PQexecParams(conn, command, sizeof...(_Args), nullptr,
+                              parms.m_values, parms.m_lengths, parms.m_formats, 0);
+    }
+}

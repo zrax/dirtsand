@@ -142,51 +142,6 @@ namespace DS
         FILE* m_file;
     };
 
-    /* Read/Write RAM stream */
-    class BufferStream : public Stream
-    {
-    public:
-        BufferStream() : m_buffer(0), m_position(0), m_size(0), m_alloc(0), m_refs(1) { }
-        BufferStream(const void* data, size_t size) : m_buffer(0), m_refs(1) { set(data, size); }
-        virtual ~BufferStream() { delete[] m_buffer; }
-
-        virtual ssize_t readBytes(void* buffer, size_t count);
-        virtual ssize_t writeBytes(const void* buffer, size_t count);
-
-        virtual uint32_t tell() const { return static_cast<uint32_t>(m_position); }
-        virtual void seek(int32_t offset, int whence);
-        virtual uint32_t size() const { return m_size; }
-        virtual bool atEof() { return m_position >= m_size; }
-        virtual void flush() { }
-
-        void truncate()
-        {
-            m_size = 0;
-            m_position = 0;
-        }
-
-        const uint8_t* buffer() const { return m_buffer; }
-
-        void set(const void* buffer, size_t size);
-        void steal(uint8_t* buffer, size_t size);
-
-        void ref() { ++m_refs; }
-        void unref()
-        {
-            if (--m_refs == 0)
-                delete this;
-        }
-
-    private:
-        uint8_t* m_buffer;
-        size_t m_position;
-        size_t m_size, m_alloc;
-        std::atomic_int m_refs;
-
-        BufferStream(const BufferStream& copy) { }
-        void operator=(const BufferStream& copy) { }
-    };
-
     /* Read-only ref-counted RAM stream */
     class Blob
     {
@@ -269,6 +224,53 @@ namespace DS
     private:
         Blob m_blob;
         size_t m_position;
+    };
+
+    /* Read/Write RAM stream */
+    class BufferStream : public Stream
+    {
+    public:
+        BufferStream() : m_buffer(0), m_position(0), m_size(0), m_alloc(0), m_refs(1) { }
+        BufferStream(const void* data, size_t size) : m_buffer(0), m_refs(1) { set(data, size); }
+        virtual ~BufferStream() { delete[] m_buffer; }
+
+        virtual ssize_t readBytes(void* buffer, size_t count);
+        virtual ssize_t writeBytes(const void* buffer, size_t count);
+
+        virtual uint32_t tell() const { return static_cast<uint32_t>(m_position); }
+        virtual void seek(int32_t offset, int whence);
+        virtual uint32_t size() const { return m_size; }
+        virtual bool atEof() { return m_position >= m_size; }
+        virtual void flush() { }
+
+        void truncate()
+        {
+            m_size = 0;
+            m_position = 0;
+        }
+
+        const uint8_t* buffer() const { return m_buffer; }
+
+        void set(const void* buffer, size_t size);
+        void steal(uint8_t* buffer, size_t size);
+
+        void ref() { ++m_refs; }
+        void unref()
+        {
+            if (--m_refs == 0)
+                delete this;
+        }
+
+        DS::Blob toBlob() const { return DS::Blob(m_buffer, m_size); }
+
+    private:
+        uint8_t* m_buffer;
+        size_t m_position;
+        size_t m_size, m_alloc;
+        std::atomic_int m_refs;
+
+        BufferStream(const BufferStream& copy) { }
+        void operator=(const BufferStream& copy) { }
     };
 }
 

@@ -44,12 +44,10 @@ void dm_auth_addacct(Auth_AddAcct* msg)
 {
     check_postgres();
 
-    PostgresStrings<3> qparms;
-    qparms.set(0, msg->m_acctInfo.m_acctName);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
             "SELECT idx, \"AcctUuid\" FROM auth.\"Accounts\""
             "    WHERE LOWER(\"Login\")=LOWER($1)",
-            1, 0, qparms.m_values, 0, 0, 0);
+            msg->m_acctInfo.m_acctName);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -63,16 +61,12 @@ void dm_auth_addacct(Auth_AddAcct* msg)
 
         DS::StringBuffer<char> pwBuf = msg->m_acctInfo.m_password.toUtf8();
         DS::ShaHash pwHash = DS::ShaHash::Sha1(pwBuf.data(), pwBuf.length());
-        PostgresStrings<3> iparms;
-        iparms.set(0, gen_uuid().toString());
-        iparms.set(1, pwHash.toString());
-        iparms.set(2, msg->m_acctInfo.m_acctName);
-        PGresult* result = PQexecParams(s_postgres,
+        PGresult* result = DS::PQexecVA(s_postgres,
                 "INSERT INTO auth.\"Accounts\""
                 "    (\"AcctUuid\", \"PassHash\", \"Login\", \"AcctFlags\", \"BillingType\")"
                 "    VALUES ($1, $2, $3, 0, 1)"
                 "    returning idx",
-                3, 0, iparms.m_values, 0, 0, 0);
+                gen_uuid(), pwHash.toString(), msg->m_acctInfo.m_acctName);
         if (PQresultStatus(result) != PGRES_TUPLES_OK) {
             fprintf(stderr, "%s:%d:\n    Postgres INSERT error: %s\n",
                     __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -129,13 +123,11 @@ void dm_auth_login(Auth_LoginInfo* info)
     AuthServer_Private* client = reinterpret_cast<AuthServer_Private*>(info->m_client);
     client->m_acctUuid = DS::Uuid();
 
-    PostgresStrings<1> parm;
-    parm.set(0, info->m_acctName);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
             "SELECT \"PassHash\", \"AcctUuid\", \"AcctFlags\", \"BillingType\""
             "    FROM auth.\"Accounts\""
             "    WHERE LOWER(\"Login\")=LOWER($1)",
-            1, 0, parm.m_values, 0, 0, 0);
+            info->m_acctName);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -203,13 +195,10 @@ void dm_auth_login(Auth_LoginInfo* info)
     }
 
     // Get list of players
-    DS::String uuidString = client->m_acctUuid.toString();
-    parm.m_values[0] = uuidString.c_str();
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
             "SELECT \"PlayerIdx\", \"PlayerName\", \"AvatarShape\", \"Explorer\""
             "    FROM auth.\"Players\""
-            "    WHERE \"AcctUuid\"=$1",
-            1, 0, parm.m_values, 0, 0, 0);
+            "    WHERE \"AcctUuid\"=$1", client->m_acctUuid);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -287,16 +276,13 @@ void dm_auth_disconnect(Auth_ClientMessage* msg)
     if (client->m_player.m_playerId) {
         // Mark player as offline
         check_postgres();
-        PostgresStrings<2> parms;
-        parms.set(0, DS::Vault::e_NodePlayerInfo);
-        parms.set(1, client->m_player.m_playerId);
-        PGresult* result = PQexecParams(s_postgres,
+        PGresult* result = DS::PQexecVA(s_postgres,
                 "UPDATE vault.\"Nodes\" SET"
                 "    \"Int32_1\"=0, \"String64_1\"='',"
                 "    \"Uuid_1\"='00000000-0000-0000-0000-000000000000'"
                 "    WHERE \"NodeType\"=$1 AND \"Uint32_1\"=$2"
                 "    RETURNING idx",
-                2, 0, parms.m_values, 0, 0, 0);
+                DS::Vault::e_NodePlayerInfo, client->m_player.m_playerId);
         if (PQresultStatus(result) != PGRES_TUPLES_OK) {
             fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                     __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -320,14 +306,11 @@ void dm_auth_setPlayer(Auth_ClientMessage* msg)
     check_postgres();
 
     AuthServer_Private* client = reinterpret_cast<AuthServer_Private*>(msg->m_client);
-    PostgresStrings<2> parms;
-    parms.set(0, client->m_acctUuid.toString());
-    parms.set(1, client->m_player.m_playerId);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
             "SELECT \"PlayerName\", \"AvatarShape\", \"Explorer\""
             "    FROM auth.\"Players\""
             "    WHERE \"AcctUuid\"=$1 AND \"PlayerIdx\"=$2",
-            2, 0, parms.m_values, 0, 0, 0);
+            client->m_acctUuid, client->m_player.m_playerId);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -375,15 +358,13 @@ void dm_auth_setPlayer(Auth_ClientMessage* msg)
     PQclear(result);
 
     // Mark player as online
-    parms.set(0, DS::Vault::e_NodePlayerInfo);
-    parms.set(1, client->m_player.m_playerId);
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
             "UPDATE vault.\"Nodes\" SET"
             "    \"Int32_1\"=1, \"String64_1\"='Lobby',"
             "    \"Uuid_1\"='00000000-0000-0000-0000-000000000000'"
             "    WHERE \"NodeType\"=$1 AND \"Uint32_1\"=$2"
             "    RETURNING idx",
-            2, 0, parms.m_values, 0, 0, 0);
+            DS::Vault::e_NodePlayerInfo, client->m_player.m_playerId);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -414,12 +395,10 @@ void dm_auth_createPlayer(Auth_PlayerCreate* msg)
     }
 
     // Check for existing player
-    PostgresStrings<1> sparms;
-    sparms.set(0, msg->m_player.m_playerName);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
             "SELECT idx FROM auth.\"Players\""
             "    WHERE \"PlayerName\"=$1",
-            1, 0, sparms.m_values, 0, 0, 0);
+            msg->m_player.m_playerName);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -452,18 +431,14 @@ void dm_auth_createPlayer(Auth_PlayerCreate* msg)
     if (v_ref_node(s_allPlayers, std::get<1>(player), 0))
         dm_auth_bcast_ref({s_allPlayers, std::get<1>(player), 0, 0});
 
-    PostgresStrings<5> iparms;
-    iparms.set(0, client->m_acctUuid.toString());
-    iparms.set(1, msg->m_player.m_playerId);
-    iparms.set(2, msg->m_player.m_playerName);
-    iparms.set(3, msg->m_player.m_avatarModel);
-    iparms.set(4, msg->m_player.m_explorer);
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
             "INSERT INTO auth.\"Players\""
             "    (\"AcctUuid\", \"PlayerIdx\", \"PlayerName\", \"AvatarShape\", \"Explorer\")"
             "    VALUES ($1, $2, $3, $4, $5)"
             "    RETURNING idx",
-            5, 0, iparms.m_values, 0, 0, 0);
+            client->m_acctUuid, msg->m_player.m_playerId,
+            msg->m_player.m_playerName, msg->m_player.m_avatarModel,
+            msg->m_player.m_explorer);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres INSERT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -488,13 +463,10 @@ void dm_auth_deletePlayer(Auth_PlayerDelete* msg)
 
     // Check for existing player
 
-    PostgresStrings<2> sparms;
-    sparms.set(0, client->m_acctUuid.toString());
-    sparms.set(1, msg->m_playerId);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
             "SELECT idx FROM auth.\"Players\""
             "    WHERE \"AcctUuid\"=$1 AND \"PlayerIdx\"=$2",
-            2, 0, sparms.m_values, 0, 0, 0);
+            client->m_acctUuid, msg->m_playerId);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -512,12 +484,10 @@ void dm_auth_deletePlayer(Auth_PlayerDelete* msg)
     }
     PQclear(result);
 
-    PostgresStrings<1> dparms;
-    dparms.set(0, msg->m_playerId);
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
             "DELETE FROM auth.\"Players\""
             "    WHERE \"PlayerIdx\"=$1",
-            1, 0, dparms.m_values, 0, 0, 0);
+            msg->m_playerId);
     if (PQresultStatus(result) != PGRES_COMMAND_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres DELETE error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -528,13 +498,11 @@ void dm_auth_deletePlayer(Auth_PlayerDelete* msg)
     PQclear(result);
 
     // Find PlayerInfo and remove all refs to it
-    sparms.set(0, msg->m_playerId);
-    sparms.set(1, DS::Vault::e_NodePlayerInfo);
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
                           "SELECT idx FROM vault.\"Nodes\""
                           "    WHERE \"Uint32_1\" = $1"
                           "    AND \"NodeType\" = $2",
-                          2, 0, sparms.m_values, 0, 0, 0);
+                          msg->m_playerId, DS::Vault::e_NodePlayerInfo);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -546,11 +514,10 @@ void dm_auth_deletePlayer(Auth_PlayerDelete* msg)
     uint32_t playerInfo = strtoul(PQgetvalue(result, 0, 0), 0, 10);
     PQclear(result);
 
-    dparms.set(0, playerInfo);
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
                           "DELETE FROM vault.\"NodeRefs\""
                           "    WHERE \"ChildIdx\" = $1",
-                          1, 0, dparms.m_values, 0, 0, 0);
+                          playerInfo);
     if (PQresultStatus(result) != PGRES_COMMAND_OK) {
         fprintf(stderr, "%s:%d\n    Postgres DELETE error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -565,12 +532,10 @@ void dm_auth_deletePlayer(Auth_PlayerDelete* msg)
 void dm_auth_createAge(Auth_AgeCreate* msg)
 {
     std::tuple<uint32_t, uint32_t> ageNodes;
-    PostgresStrings<2> params;
-    params.set(0, msg->m_age.m_ageId.toString());
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
             "SELECT idx FROM vault.\"Nodes\""
-            "   WHERE \"Uuid_1\"=$1 AND \"NodeType\"='3'",
-            1, 0, params.m_values, 0, 0, 0);
+            "   WHERE \"Uuid_1\"=$1 AND \"NodeType\"=$2",
+            msg->m_age.m_ageId, DS::Vault::e_NodeAge);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -580,10 +545,10 @@ void dm_auth_createAge(Auth_AgeCreate* msg)
     if (PQntuples(result) == 1) {
         std::get<0>(ageNodes) = strtoul(PQgetvalue(result, 0, 0), 0, 10);
         PQclear(result);
-        PGresult* result = PQexecParams(s_postgres,
+        PGresult* result = DS::PQexecVA(s_postgres,
                 "SELECT idx FROM vault.\"Nodes\""
-                "   WHERE \"Uuid_1\"=$1 AND \"NodeType\"='33'",
-                1, 0, params.m_values, 0, 0, 0);
+                "   WHERE \"Uuid_1\"=$1 AND \"NodeType\"=$2",
+                msg->m_age.m_ageId, DS::Vault::e_NodeAgeInfo);
         if (PQresultStatus(result) != PGRES_TUPLES_OK) {
             fprintf(stderr, "%s:%d\n    Postgres SELECT error: %s\n",
             __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -619,12 +584,9 @@ void dm_auth_findAge(Auth_GameAge* msg)
            msg->m_instanceId.toString().c_str(), msg->m_name.c_str());
 #endif
 
-    PostgresStrings<4> parms;
-    parms.set(0, msg->m_instanceId.toString());
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
             "SELECT idx, \"AgeIdx\", \"DisplayName\" FROM game.\"Servers\""
-            "    WHERE \"AgeUuid\"=$1",
-            1, 0, parms.m_values, 0, 0, 0);
+            "    WHERE \"AgeUuid\"=$1", msg->m_instanceId);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -635,14 +597,12 @@ void dm_auth_findAge(Auth_GameAge* msg)
     DS::String ageDesc;
     if (PQntuples(result) == 0) {
         PQclear(result);
-        parms.set(0, msg->m_instanceId.toString());
-        parms.set(1, msg->m_name);
-        result = PQexecParams(s_postgres,
+        result = DS::PQexecVA(s_postgres,
                 "INSERT INTO game.\"Servers\""
                 "    (\"AgeUuid\", \"AgeFilename\", \"DisplayName\", \"AgeIdx\", \"SdlIdx\", \"Temporary\")"
                 "    VALUES ($1, $2, $2, 0, 0, 't')"
                 "    RETURNING idx, \"AgeIdx\", \"DisplayName\"",
-                2, 0, parms.m_values, 0, 0, 0);
+                msg->m_instanceId, msg->m_name);
         if (PQresultStatus(result) != PGRES_TUPLES_OK) {
             fprintf(stderr, "%s:%d:\n    Postgres INSERT error: %s\n",
                     __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -658,16 +618,13 @@ void dm_auth_findAge(Auth_GameAge* msg)
     PQclear(result);
 
     // Update the player info to show up in the age
-    parms.set(0, DS::Vault::e_NodePlayerInfo);
-    parms.set(1, reinterpret_cast<AuthServer_Private*>(msg->m_client)->m_player.m_playerId);
-    parms.set(2, ageDesc);
-    parms.set(3, msg->m_instanceId.toString());
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
             "UPDATE vault.\"Nodes\" SET"
-            "    \"String64_1\"=$3, \"Uuid_1\"=$4"
-            "    WHERE \"NodeType\"=$1 AND \"Uint32_1\"=$2"
+            "    \"String64_1\"=$1, \"Uuid_1\"=$2"
+            "    WHERE \"NodeType\"=$3 AND \"Uint32_1\"=$4"
             "    RETURNING idx",
-            4, 0, parms.m_values, 0, 0, 0);
+            ageDesc, msg->m_instanceId, DS::Vault::e_NodePlayerInfo,
+            reinterpret_cast<AuthServer_Private*>(msg->m_client)->m_player.m_playerId);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -695,14 +652,11 @@ void dm_auth_get_public(Auth_PubAgeRequest* msg)
 
 uint32_t dm_auth_set_public(uint32_t nodeid)
 {
-    PostgresStrings<3> parms;
-    parms.set(0, (uint32_t)time(0));
-    parms.set(1, nodeid);
-    parms.set(2, DS::Vault::e_NodeAgeInfo);
-    PGresult* result = PQexecParams(s_postgres,"UPDATE vault.\"Nodes\" SET"
+    PGresult* result = DS::PQexecVA(s_postgres,"UPDATE vault.\"Nodes\" SET"
                        "    \"ModifyTime\"=$1, \"Int32_2\"=1 WHERE idx=$2"
                        "     AND \"NodeType\"=$3",
-                       3, 0, parms.m_values, 0, 0, 0);
+                       static_cast<uint32_t>(time(nullptr)), nodeid,
+                       DS::Vault::e_NodeAgeInfo);
     if (PQresultStatus(result) != PGRES_COMMAND_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -717,14 +671,11 @@ uint32_t dm_auth_set_public(uint32_t nodeid)
 
 uint32_t dm_auth_set_private(uint32_t nodeid)
 {
-    PostgresStrings<3> parms;
-    parms.set(0, (uint32_t)time(0));
-    parms.set(1, DS::Vault::e_NodeAgeInfo);
-    parms.set(2, nodeid);
-    PGresult* result = PQexecParams(s_postgres, "UPDATE vault.\"Nodes\" SET"
+    PGresult* result = DS::PQexecVA(s_postgres, "UPDATE vault.\"Nodes\" SET"
                        "    \"Int32_2\"=0, \"ModifyTime\"=$1"
                        "    WHERE \"NodeType\"=$2 AND idx=$3",
-                       3, 0, parms.m_values, 0, 0, 0);
+                       static_cast<uint32_t>(time(nullptr)),
+                       DS::Vault::e_NodeAgeInfo, nodeid);
     if (PQresultStatus(result) != PGRES_COMMAND_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                  __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -749,14 +700,10 @@ void dm_auth_set_pub_priv(Auth_SetPublic* msg)
 
 void dm_auth_createScore(Auth_CreateScore* msg)
 {
-    PostgresStrings<4> parms;
-    parms.set(0, msg->m_owner);
-    parms.set(1, msg->m_type);
-    parms.set(2, msg->m_name);
-    parms.set(3, msg->m_points);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
                                     "SELECT auth.create_score($1, $2, $3, $4);",
-                                    4, 0, parms.m_values, 0, 0, 0);
+                                    msg->m_owner, msg->m_type, msg->m_name,
+                                    msg->m_points);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -774,14 +721,11 @@ void dm_auth_createScore(Auth_CreateScore* msg)
 
 void dm_auth_getScores(Auth_GetScores* msg)
 {
-    PostgresStrings<2> parms;
-    parms.set(0, msg->m_owner);
-    parms.set(1, msg->m_name);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
                                     "SELECT idx, \"CreateTime\", \"Type\", \"Points\""
                                     "    FROM auth.\"Scores\" WHERE \"OwnerIdx\"=$1 AND"
                                     "    \"Name\"=$2",
-                                    2, 0, parms.m_values, 0, 0, 0);
+                                    msg->m_owner, msg->m_name);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -805,11 +749,9 @@ void dm_auth_getScores(Auth_GetScores* msg)
 
 void dm_auth_addScorePoints(Auth_UpdateScore* msg)
 {
-    PostgresStrings<3> parms;
-    parms.set(0, msg->m_scoreId);
-    PGresult* result = PQexecParams(s_postgres,
-                                   "SELECT \"Type\" FROM auth.\"Scores\" WHERE idx=$1",
-                                    1, 0, parms.m_values, 0, 0, 0);
+    PGresult* result = DS::PQexecVA(s_postgres,
+                                    "SELECT \"Type\" FROM auth.\"Scores\" WHERE idx=$1",
+                                    msg->m_scoreId);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -830,11 +772,10 @@ void dm_auth_addScorePoints(Auth_UpdateScore* msg)
     }
 
     // Passed all sanity checks, update score.
-    parms.set(1, msg->m_points);
-    parms.set(2, static_cast<uint32_t>(scoreType == Auth_UpdateScore::e_Golf));
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
                           "SELECT auth.add_score_points($1, $2, $3);",
-                          3, 0, parms.m_values, 0, 0, 0);
+                          msg->m_scoreId, msg->m_points,
+                          static_cast<uint32_t>(scoreType == Auth_UpdateScore::e_Golf));
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -850,13 +791,10 @@ void dm_auth_addScorePoints(Auth_UpdateScore* msg)
 
 void dm_auth_transferScorePoints(Auth_TransferScore* msg)
 {
-    PostgresStrings<4> parms;
-    parms.set(0, msg->m_srcScoreId);
-    parms.set(1, msg->m_dstScoreId);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
                        "SELECT \"Type\" FROM auth.\"Scores\""
                        "    WHERE idx=$1 OR idx=$2",
-                       2, 0, parms.m_values, 0, 0, 0);
+                       msg->m_srcScoreId, msg->m_dstScoreId);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -879,11 +817,10 @@ void dm_auth_transferScorePoints(Auth_TransferScore* msg)
     if (srcType == Auth_UpdateScore::e_Golf && dstType == Auth_UpdateScore::e_Golf) {
         allowNegative = true;
     }
-    parms.set(2, msg->m_points);
-    parms.set(3, static_cast<uint32_t>(allowNegative));
-    result = PQexecParams(s_postgres,
+    result = DS::PQexecVA(s_postgres,
              "SELECT auth.transfer_score_points($1, $2, $3, $4)",
-             4, 0, parms.m_values, 0, 0, 0);
+             msg->m_srcScoreId, msg->m_dstScoreId, msg->m_points,
+             static_cast<uint32_t>(allowNegative));
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -898,11 +835,9 @@ void dm_auth_transferScorePoints(Auth_TransferScore* msg)
 
 void dm_auth_setScorePoints(Auth_UpdateScore* msg)
 {
-    PostgresStrings<2> parms;
-    parms.set(0, msg->m_scoreId);
-    PGresult* result = PQexecParams(s_postgres,
-                                   "SELECT \"Type\" FROM auth.\"Scores\" WHERE idx=$1",
-                                    1, 0, parms.m_values, 0, 0, 0);
+    PGresult* result = DS::PQexecVA(s_postgres,
+                                    "SELECT \"Type\" FROM auth.\"Scores\" WHERE idx=$1",
+                                    msg->m_scoreId);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -921,10 +856,9 @@ void dm_auth_setScorePoints(Auth_UpdateScore* msg)
         SEND_REPLY(msg, DS::e_NetScoreWrongType);
         return;
     }
-    parms.set(1, msg->m_points);
-    result = PQexecParams(s_postgres,
-                          "UPDATE auth.\"Scores\" SET \"Points\"=$2 WHERE idx=$1",
-                          2, 0, parms.m_values, 0, 0, 0);
+    result = DS::PQexecVA(s_postgres,
+                          "UPDATE auth.\"Scores\" SET \"Points\"=$1 WHERE idx=$2",
+                          msg->m_points, msg->m_scoreId);
     if (PQresultStatus(result) != PGRES_COMMAND_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -938,22 +872,17 @@ void dm_auth_setScorePoints(Auth_UpdateScore* msg)
 
 void dm_auth_getHighScores(Auth_GetHighScores* msg)
 {
-    PostgresStrings<3> parms;
     PGresult* result;
     if (msg->m_owner == 0) {
-        parms.set(0, msg->m_name);
-        parms.set(1, msg->m_maxScores);
-        result = PQexecParams(s_postgres,
+        result = DS::PQexecVA(s_postgres,
                               "SELECT idx, \"CreateTime\", \"Type\", \"Points\""
                               "    FROM auth.\"Scores\" WHERE \"Name\"=$1"
                               "    LIMIT $2",
-                              2, 0, parms.m_values, 0, 0, 0);
+                              msg->m_name, msg->m_maxScores);
     } else {
-        parms.set(0, msg->m_owner);
-        parms.set(1, DS::Vault::e_AgeOwnersFolder);
-        result = PQexecParams(s_postgres,
+        result = DS::PQexecVA(s_postgres,
                               "SELECT idx FROM vault.find_folder($1, $2)",
-                               2, 0, parms.m_values, 0, 0, 0);
+                               msg->m_owner, DS::Vault::e_AgeOwnersFolder);
         if (PQresultStatus(result) != PGRES_TUPLES_OK) {
             fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                     __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -965,16 +894,13 @@ void dm_auth_getHighScores(Auth_GetHighScores* msg)
         uint32_t ageOwnersFolder = strtoul(PQgetvalue(result, 0, 0), 0, 10);
         PQclear(result);
 
-        parms.set(0, msg->m_name);
-        parms.set(1, ageOwnersFolder);
-        parms.set(2, msg->m_maxScores);
-        result = PQexecParams(s_postgres,
+        result = DS::PQexecVA(s_postgres,
                               "SELECT idx, \"OwnerIdx\", \"CreateTime\", \"Type\", \"Points\""
                               "    FROM auth.\"Scores\" WHERE \"Name\"=$1"
                               "    AND \"OwnerIdx\" IN (SELECT \"ChildIdx\""
                               "    FROM vault.\"NodeRefs\" WHERE \"ParentIdx\"=$2)"
                               "    LIMIT $3",
-                              3, 0, parms.m_values, 0, 0, 0);
+                              msg->m_name, ageOwnersFolder, msg->m_maxScores);
     }
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
@@ -1018,12 +944,10 @@ void dm_auth_updateAgeSrv(Auth_UpdateAgeSrv* msg)
 
 void dm_auth_acctFlags(Auth_AccountFlags* msg)
 {
-    PostgresStrings<2> parms;
-    parms.set(0, msg->m_acctName);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
                                     "SELECT \"AcctFlags\" FROM auth.\"Accounts\""
                                     "    WHERE LOWER(\"Login\")=LOWER($1)",
-                                    1, 0, parms.m_values, 0, 0, 0);
+                                    msg->m_acctName);
     if (PQresultStatus(result) != PGRES_TUPLES_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                 __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -1056,11 +980,10 @@ void dm_auth_acctFlags(Auth_AccountFlags* msg)
 #undef TOGGLE_FLAG
 
     if (msg->m_flags != 0) {
-        parms.set(1, acctFlags);
-        result = PQexecParams(s_postgres,
-                              "UPDATE auth.\"Accounts\" SET \"AcctFlags\"=$2"
-                              "    WHERE LOWER(\"Login\")=LOWER($1)",
-                              2, 0, parms.m_values, 0, 0, 0);
+        result = DS::PQexecVA(s_postgres,
+                              "UPDATE auth.\"Accounts\" SET \"AcctFlags\"=$1"
+                              "    WHERE LOWER(\"Login\")=LOWER($2)",
+                              acctFlags, msg->m_acctName);
         if (PQresultStatus(result) != PGRES_COMMAND_OK) {
             fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                     __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -1153,14 +1076,11 @@ void dm_auth_update_globalSDL(Auth_UpdateGlobalSDL* msg)
             }
 
             // I guess this is a good time to save it back to the DB?
-            DS::Blob blob = state.toBlob();
-            PostgresStrings<2> parms;
-            parms.set(0, msg->m_ageFilename);
-            parms.set(1, DS::Base64Encode(blob.buffer(), blob.size()));
-            PGresult* result = PQexecParams(s_postgres, "UPDATE vault.\"GlobalStates\""
-                                            "    SET \"SdlBlob\" = $2"
-                                            "    WHERE \"Descriptor\" = $1",
-                                            2, 0, parms.m_values, 0, 0, 0);
+            PGresult* result = DS::PQexecVA(s_postgres,
+                    "UPDATE vault.\"GlobalStates\""
+                    "    SET \"SdlBlob\" = $2"
+                    "    WHERE \"Descriptor\" = $1",
+                    msg->m_ageFilename, state.toBlob());
             if (PQresultStatus(result) != PGRES_COMMAND_OK) {
                 fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                         __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -1210,13 +1130,11 @@ void dm_authDaemon()
     }
 
     // Mark all player info nodes offline
-    PostgresStrings<1> parms;
-    parms.set(0, DS::Vault::e_NodePlayerInfo);
-    PGresult* result = PQexecParams(s_postgres,
+    PGresult* result = DS::PQexecVA(s_postgres,
                                     "UPDATE vault.\"Nodes\" SET"
                                     "    \"Int32_1\" = 0"
                                     "    WHERE \"NodeType\" = $1",
-                                    1, 0, parms.m_values, 0, 0, 0);
+                                    DS::Vault::e_NodePlayerInfo);
     if (PQresultStatus(result) != PGRES_COMMAND_OK) {
         fprintf(stderr, "%s:%d:\n    Postgres UPDATE error: %s\n",
                  __FILE__, __LINE__, PQerrorMessage(s_postgres));
@@ -1270,11 +1188,9 @@ void dm_authDaemon()
                     Auth_NodeInfo* info = reinterpret_cast<Auth_NodeInfo*>(msg.m_payload);
                     if (!info->m_internal && info->m_node.m_NodeType == DS::Vault::e_NodeSDL) {
                         // This is an SDL update. It needs to be passed off to the gameserver
-                        PostgresStrings<1> parms;
-                        parms.set(0, info->m_node.m_NodeIdx);
-                        PGresult* result = PQexecParams(s_postgres,
-                                                        "SELECT \"idx\" FROM game.\"Servers\" WHERE \"SdlIdx\"=$1",
-                                                        1, 0, parms.m_values, 0, 0, 0);
+                        PGresult* result = DS::PQexecVA(s_postgres,
+                                "SELECT \"idx\" FROM game.\"Servers\" WHERE \"SdlIdx\"=$1",
+                                info->m_node.m_NodeIdx);
                         if (PQresultStatus(result) != PGRES_TUPLES_OK) {
                             fprintf(stderr, "%s:%d:\n    Postgres SELECT error: %s\n",
                                     __FILE__, __LINE__, PQerrorMessage(s_postgres));
