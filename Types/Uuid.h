@@ -35,7 +35,7 @@ namespace DS
         Uuid(const uint8_t* bytes)
         { memcpy(m_bytes, bytes, sizeof(m_bytes)); }
 
-        Uuid(const char* struuid);
+        explicit Uuid(const char* struuid);
 
         bool operator==(const Uuid& other) const
         { return memcmp(m_bytes, other.m_bytes, sizeof(m_bytes)) == 0; }

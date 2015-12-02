@@ -1117,9 +1117,9 @@ DS::Vault::Node v_fetch_node(uint32_t nodeIdx)
     if (!PQgetisnull(result, 0, 3))
         node.set_CreateAgeName(PQgetvalue(result, 0, 3));
     if (!PQgetisnull(result, 0, 4))
-        node.set_CreateAgeUuid(PQgetvalue(result, 0, 4));
+        node.set_CreateAgeUuid(DS::Uuid(PQgetvalue(result, 0, 4)));
     if (!PQgetisnull(result, 0, 5))
-        node.set_CreatorUuid(PQgetvalue(result, 0, 5));
+        node.set_CreatorUuid(DS::Uuid(PQgetvalue(result, 0, 5)));
     if (!PQgetisnull(result, 0, 6))
         node.set_CreatorIdx(strtoul(PQgetvalue(result, 0, 6), 0, 10));
     node.set_NodeType(strtoul(PQgetvalue(result, 0, 7), 0, 10));
@@ -1140,13 +1140,13 @@ DS::Vault::Node v_fetch_node(uint32_t nodeIdx)
     if (!PQgetisnull(result, 0, 15))
         node.set_Uint32_4(strtoul(PQgetvalue(result, 0, 15), 0, 10));
     if (!PQgetisnull(result, 0, 16))
-        node.set_Uuid_1(PQgetvalue(result, 0, 16));
+        node.set_Uuid_1(DS::Uuid(PQgetvalue(result, 0, 16)));
     if (!PQgetisnull(result, 0, 17))
-        node.set_Uuid_2(PQgetvalue(result, 0, 17));
+        node.set_Uuid_2(DS::Uuid(PQgetvalue(result, 0, 17)));
     if (!PQgetisnull(result, 0, 18))
-        node.set_Uuid_3(PQgetvalue(result, 0, 18));
+        node.set_Uuid_3(DS::Uuid(PQgetvalue(result, 0, 18)));
     if (!PQgetisnull(result, 0, 19))
-        node.set_Uuid_4(PQgetvalue(result, 0, 19));
+        node.set_Uuid_4(DS::Uuid(PQgetvalue(result, 0, 19)));
     if (!PQgetisnull(result, 0, 20))
         node.set_String64_1(PQgetvalue(result, 0, 20));
     if (!PQgetisnull(result, 0, 21))

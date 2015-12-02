@@ -15,6 +15,13 @@ set(DS_HOOD_INST_NAME       "Neighborhood"
 set(DS_HOOD_POP_THRESHOLD   "20"
     CACHE STRING "Default Neighborhood Max Population")
 
+option(DS_STORE_BLOBS_AS_BASE64
+       "Store blob data in Postgres as Base64-encoded text instead of binary blobs"
+       ON)
+if(DS_STORE_BLOBS_AS_BASE64)
+    add_definitions(-DDS_STORE_BLOBS_AS_BASE64)
+endif()
+
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
     execute_process(COMMAND ${CMAKE_CXX_COMPILER} -dumpversion
                     OUTPUT_VARIABLE GCC_VERSION)

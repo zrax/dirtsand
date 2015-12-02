@@ -18,27 +18,65 @@
 #include "Types/Uuid.h"
 #include <libpq-fe.h>
 
+#ifdef DS_STORE_BLOBS_AS_BASE64
+#include "encodings.h"
+#endif
+
 template <size_t count>
 struct PostgresStrings
 {
-    const char* m_values[count];
     DS::String m_strings[count];
+#ifndef DS_STORE_BLOBS_AS_BASE64
+    DS::Blob m_blobs[count];
+#endif
+    union
+    {
+        uint32_t ui;
+        int i;
+    } m_ints[count];
+
+    const char* m_values[count];
+    int m_lengths[count];
+    int m_formats[count];
 
     void set(size_t idx, const DS::String& str)
     {
         m_strings[idx] = str;
-        this->m_values[idx] = str.c_str();
+        m_values[idx] = str.c_str();
+        m_lengths[idx] = str.length();
+        m_formats[idx] = 0; // Text
     }
 
     void set(size_t idx, uint32_t value)
     {
-        m_strings[idx] = DS::String::Format("%u", value);
-        this->m_values[idx] = m_strings[idx].c_str();
+        m_ints[idx].ui = value;
+        m_values[idx] = reinterpret_cast<const char*>(&m_ints[idx].ui);
+        m_lengths[idx] = sizeof(value);
+        m_formats[idx] = 1; // Binary
     }
 
     void set(size_t idx, int value)
     {
-        m_strings[idx] = DS::String::Format("%d", value);
-        this->m_values[idx] = m_strings[idx].c_str();
+        m_ints[idx].i = value;
+        m_values[idx] = reinterpret_cast<const char*>(&m_ints[idx].i);
+        m_lengths[idx] = sizeof(value);
+        m_formats[idx] = 1; // Binary
+    }
+
+    void set(size_t idx, const DS::Uuid& value)
+    {
+        set(idx, value.toString());
+    }
+
+    void set(size_t idx, const DS::Blob& value)
+    {
+#ifdef DS_STORE_BLOBS_AS_BASE64
+        set(idx, DS::Base64Encode(value.buffer(), value.size()));
+#else
+        m_blobs[idx] = value;
+        m_values[idx] = reinterpret_cast<const char*>(value.buffer());
+        m_lengths[idx] = value.size();
+        m_formats[idx] = 1; // Binary
+#endif
     }
 };

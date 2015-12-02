@@ -877,7 +877,7 @@ GameHost_Private* start_game_host(uint32_t ageMcpId)
         DS_DASSERT(PQntuples(result) == 1);
 
         GameHost_Private* host = new GameHost_Private();
-        host->m_instanceId = PQgetvalue(result, 0, 0);
+        host->m_instanceId = DS::Uuid(PQgetvalue(result, 0, 0));
         host->m_ageFilename = PQgetvalue(result, 0, 1);
         host->m_ageIdx = strtoul(PQgetvalue(result, 0, 2), 0, 10);
         host->m_gameMaster = 0;
