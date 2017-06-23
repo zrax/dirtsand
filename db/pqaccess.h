@@ -18,32 +18,56 @@
 #include "Types/Uuid.h"
 #include <libpq-fe.h>
 
-template <size_t count>
-struct PostgresStrings
+namespace DS
 {
-    const char* m_values[count];
-    ST::string m_strings[count];
-
-    void set(size_t idx, const ST::string& str)
+    template <size_t count>
+    struct PostgresStrings
     {
-        m_strings[idx] = str;
-        _cache(idx);
+        const char* m_values[count];
+        ST::string m_strings[count];
+
+        void set(size_t idx, const ST::string& str)
+        {
+            m_strings[idx] = str;
+            _cache(idx);
+        }
+
+        void set(size_t idx, uint32_t value)
+        {
+            m_strings[idx] = ST::string::from_uint(value);
+            _cache(idx);
+        }
+
+        void set(size_t idx, int value)
+        {
+            m_strings[idx] = ST::string::from_int(value);
+            _cache(idx);
+        }
+
+        void _cache(size_t idx)
+        {
+            m_values[idx] = m_strings[idx].c_str();
+        }
+    };
+
+    template <class _Strings>
+    void pqaccess_set_strings(_Strings& parms, size_t idx)
+    { }
+
+    template <class _Strings, typename _Arg0, typename... _Args>
+    void pqaccess_set_strings(_Strings& parms, size_t idx, _Arg0&& arg0, _Args&&... args)
+    {
+        parms.set(idx, std::forward<_Arg0>(arg0));
+        pqaccess_set_strings(parms, idx + 1, std::forward<_Args>(args)...);
     }
 
-    void set(size_t idx, uint32_t value)
+    template <typename... _Args>
+    PGresult* PQexecVA(PGconn* conn, int resultFormat, const char* command,
+                       _Args&&... args)
     {
-        m_strings[idx] = ST::string::from_uint(value);
-        _cache(idx);
+        PostgresStrings<sizeof...(_Args)> parms;
+        pqaccess_set_strings(parms, 0, std::forward<_Args>(args)...);
+        return ::PQexecParams(conn, command, sizeof...(_Args), nullptr,
+                              parms.m_values, nullptr, nullptr, resultFormat);
     }
-
-    void set(size_t idx, int value)
-    {
-        m_strings[idx] = ST::string::from_int(value);
-        _cache(idx);
-    }
-
-    void _cache(size_t idx)
-    {
-        m_values[idx] = m_strings[idx].c_str();
-    }
-};
+}
