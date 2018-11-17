@@ -21,6 +21,7 @@
 #include "settings.h"
 #include "streams.h"
 #include "errors.h"
+#include <botan/bigint.h>
 #include <list>
 #include <thread>
 #include <mutex>
@@ -89,7 +90,8 @@ void gate_init(GateKeeper_Private& client)
         uint8_t serverSeed[7];
         uint8_t sharedKey[7];
         DS::CryptEstablish(serverSeed, sharedKey, DS::Settings::CryptKey(DS::e_KeyGate_N),
-                           DS::Settings::CryptKey(DS::e_KeyGate_K), Y);
+                           DS::Settings::CryptKey(DS::e_KeyGate_K),
+                           Botan::BigInt::decode(Y, sizeof(Y)));
         client.m_crypt = DS::CryptStateInit(sharedKey, 7);
 
         client.m_buffer.write<uint8_t>(9);

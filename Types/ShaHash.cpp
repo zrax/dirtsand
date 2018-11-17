@@ -18,7 +18,7 @@
 #include "ShaHash.h"
 #include "errors.h"
 #include <string_theory/format>
-#include <openssl/evp.h>
+#include <botan/hash.h>
 #include <cstdlib>
 #include <memory>
 
@@ -78,40 +78,30 @@ static DS::ShaHash _ds_internal_sha0(const void *data, size_t size);
 
 DS::ShaHash DS::ShaHash::Sha0(const void* data, size_t size)
 {
-    const EVP_MD* sha0_md = EVP_get_digestbyname("sha");
-    if (!sha0_md) {
-        // Use our own implementation only if OpenSSL doesn't support it
+    auto sha0_hash = Botan::HashFunction::create("SHA-0");
+    if (!sha0_hash) {
+        // Use our own implementation only if Botan doesn't support it
         return _ds_internal_sha0(data, size);
     }
 
     ShaHash result;
-    unsigned int out_len = EVP_MD_size(sha0_md);
-    DS_ASSERT(out_len == sizeof(result.m_data));
+    DS_ASSERT(sha0_hash->output_length() == sizeof(result.m_data));
 
-    EVP_MD_CTX* sha_ctx = EVP_MD_CTX_create();
-    EVP_DigestInit_ex(sha_ctx, sha0_md, nullptr);
-    EVP_DigestUpdate(sha_ctx, data, size);
-    EVP_DigestFinal_ex(sha_ctx, reinterpret_cast<unsigned char *>(result.m_data), &out_len);
-    EVP_MD_CTX_destroy(sha_ctx);
-
+    sha0_hash->update(reinterpret_cast<const uint8_t *>(data), size);
+    sha0_hash->final(reinterpret_cast<uint8_t *>(result.m_data));
     return result;
 }
 
 DS::ShaHash DS::ShaHash::Sha1(const void* data, size_t size)
 {
+    auto sha1_hash = Botan::HashFunction::create("SHA-1");
+    DS_ASSERT(sha1_hash);
+
     ShaHash result;
-    const EVP_MD* sha1_md = EVP_get_digestbyname("sha1");
-    DS_ASSERT(sha1_md);
+    DS_ASSERT(sha1_hash->output_length() == sizeof(result.m_data));
 
-    unsigned int out_len = EVP_MD_size(sha1_md);
-    DS_ASSERT(out_len == sizeof(result.m_data));
-
-    EVP_MD_CTX* sha1_ctx = EVP_MD_CTX_create();
-    EVP_DigestInit_ex(sha1_ctx, sha1_md, nullptr);
-    EVP_DigestUpdate(sha1_ctx, data, size);
-    EVP_DigestFinal_ex(sha1_ctx, reinterpret_cast<unsigned char *>(result.m_data), &out_len);
-    EVP_MD_CTX_destroy(sha1_ctx);
-
+    sha1_hash->update(reinterpret_cast<const uint8_t *>(data), size);
+    sha1_hash->final(reinterpret_cast<uint8_t *>(result.m_data));
     return result;
 }
 
@@ -242,8 +232,6 @@ static DS::ShaHash _ds_internal_sha0(const void* data, size_t size)
 int main()
 {
     int test_fails = 0;
-
-    OpenSSL_add_all_digests();
 
     // Sanity check EXPECT_SHA with known-good SHA-1 implementation
     EXPECT_SHA("da39a3ee5e6b4b0d3255bfef95601890afd80709",

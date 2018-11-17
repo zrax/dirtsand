@@ -19,6 +19,7 @@
 #include "settings.h"
 #include "errors.h"
 #include <string_theory/format>
+#include <botan/bigint.h>
 #include <dirent.h>
 #include <sys/stat.h>
 #include <poll.h>
@@ -70,7 +71,8 @@ void game_client_init(GameClient_Private& client)
         uint8_t serverSeed[7];
         uint8_t sharedKey[7];
         DS::CryptEstablish(serverSeed, sharedKey, DS::Settings::CryptKey(DS::e_KeyGame_N),
-                           DS::Settings::CryptKey(DS::e_KeyGame_K), Y);
+                           DS::Settings::CryptKey(DS::e_KeyGame_K),
+                           Botan::BigInt::decode(Y, sizeof(Y)));
         client.m_crypt = DS::CryptStateInit(sharedKey, 7);
 
         client.m_buffer.write<uint8_t>(9);

@@ -28,6 +28,11 @@
             std::swap(buffer[i], buffer[(size)-1-i]); \
     }
 
+namespace Botan
+{
+    class BigInt;
+}
+
 namespace DS
 {
     /* IMPORTANT NOTE:  OpenSSL and DirtSand store keys in Big-Endian byte
@@ -41,11 +46,12 @@ namespace DS
         e_CliToServConnect, e_ServToCliEncrypt, e_ServToCliError
     };
 
-    void GenPrimeKeys(uint8_t* N, uint8_t* K);
-    void CryptCalcX(uint8_t* X, const uint8_t* N, const uint8_t* K, uint32_t base);
+    void GenPrimeKeys(Botan::BigInt& N, Botan::BigInt& K);
+    Botan::BigInt CryptCalcX(const Botan::BigInt& N, const Botan::BigInt& K,
+                             uint32_t base);
 
-    void CryptEstablish(uint8_t* seed, uint8_t* key, const uint8_t* N,
-                        const uint8_t* K, uint8_t* Y);
+    void CryptEstablish(uint8_t* seed, uint8_t* key, const Botan::BigInt& N,
+                        const Botan::BigInt& K, const Botan::BigInt& Y);
 
     typedef void* CryptState;
 

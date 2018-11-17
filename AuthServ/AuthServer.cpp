@@ -21,7 +21,8 @@
 #include "settings.h"
 #include "errors.h"
 #include <string_theory/format>
-#include <openssl/rand.h>
+#include <botan/bigint.h>
+#include <botan/auto_rng.h>
 #include <poll.h>
 
 #define NODE_SIZE_MAX (4 * 1024 * 1024)
@@ -73,7 +74,8 @@ void auth_init(AuthServer_Private& client)
         uint8_t serverSeed[7];
         uint8_t sharedKey[7];
         DS::CryptEstablish(serverSeed, sharedKey, DS::Settings::CryptKey(DS::e_KeyAuth_N),
-                           DS::Settings::CryptKey(DS::e_KeyAuth_K), Y);
+                           DS::Settings::CryptKey(DS::e_KeyAuth_K),
+                           Botan::BigInt::decode(Y, sizeof(Y)));
         client.m_crypt = DS::CryptStateInit(sharedKey, 7);
 
         client.m_buffer.write<uint8_t>(9);
@@ -120,8 +122,11 @@ void cb_register(AuthServer_Private& client)
     }
 
     // Client challenge
-    RAND_bytes(reinterpret_cast<unsigned char*>(&client.m_serverChallenge),
-               sizeof(client.m_serverChallenge));
+    Botan::AutoSeeded_RNG rng;
+    DS_ASSERT(rng.is_seeded());
+
+    rng.randomize(reinterpret_cast<uint8_t *>(&client.m_serverChallenge),
+                  sizeof(client.m_serverChallenge));
     client.m_buffer.write<uint32_t>(client.m_serverChallenge);
 
     SEND_REPLY();

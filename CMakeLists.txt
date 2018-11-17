@@ -37,7 +37,7 @@ add_compile_options(-Wall -Wextra -Wno-unused-parameter)
 
 list(INSERT CMAKE_MODULE_PATH 0 "${CMAKE_SOURCE_DIR}/cmake")
 find_package(PostgreSQL REQUIRED)
-find_package(OpenSSL REQUIRED)
+find_package(Botan2 REQUIRED)
 find_package(Readline REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(string_theory 1.7 REQUIRED)
@@ -155,7 +155,7 @@ target_include_directories(dirtsand PRIVATE
 
 target_link_libraries(dirtsand PRIVATE
     ${PostgreSQL_LIBRARIES}
-    OpenSSL::Crypto
+    Botan2::Botan2
     ZLIB::ZLIB
     Readline::Readline
     ${STRING_THEORY_LIBRARIES}
@@ -182,6 +182,8 @@ if(ENABLE_TESTS)
     target_sources(test_sha PRIVATE streams.cpp streams.h errors.h)
     target_compile_definitions(test_sha PRIVATE ST_NO_2_0_DEPRECATION)
     target_include_directories(test_sha PRIVATE "${CMAKE_SOURCE_DIR}")
-    target_link_libraries(test_sha PRIVATE ${OPENSSL_CRYPTO_LIBRARIES}
-                                           ${STRING_THEORY_LIBRARIES})
+    target_link_libraries(test_sha PRIVATE
+        Botan2::Botan2
+        ${STRING_THEORY_LIBRARIES}
+    )
 endif()

@@ -17,9 +17,11 @@
 
 #include "CryptIO.h"
 #include "errors.h"
-#include <openssl/rand.h>
-#include <openssl/bn.h>
-#include <openssl/rc4.h>
+#include <botan/auto_rng.h>
+#include <botan/bigint.h>
+#include <botan/pow_mod.h>
+#include <botan/numthry.h>
+#include <botan/stream_cipher.h>
 #include <sys/time.h>
 #include <unistd.h>
 #include <cstdio>
@@ -31,122 +33,76 @@ bool s_commdebug = false;
 std::mutex s_commdebug_mutex;
 #endif
 
-static void init_rand()
+void DS::GenPrimeKeys(Botan::BigInt& K, Botan::BigInt& N)
 {
-    static bool _rand_seeded = false;
-    if (!_rand_seeded) {
-        struct {
-            pid_t   mypid;
-            timeval now;
-            uint8_t buffer[2048 - sizeof(pid_t) - sizeof(timeval)];
-        } _random;
-        _random.mypid = getpid();
-        gettimeofday(&_random.now, nullptr);
-        FILE* urand = fopen("/dev/urandom", "rb");
-        if (!urand) {
-            fprintf(stderr, "FATAL: Could not open /dev/urandom: %s\n",
-                    strerror(errno));
-            exit(1);
-        }
-        fread(_random.buffer, 1, sizeof(_random.buffer), urand);
-        fclose(urand);
-        RAND_seed(&_random, sizeof(_random));
-        _rand_seeded = true;
-    }
-}
+    Botan::AutoSeeded_RNG rng;
+    DS_ASSERT(rng.is_seeded());
 
-void DS::GenPrimeKeys(uint8_t* K, uint8_t* N)
-{
-    BIGNUM* bn_key = BN_new();
-    init_rand();
-
-    while (BN_num_bytes(bn_key) != 64) {
-        BN_generate_prime_ex(bn_key, 512, 1, nullptr, nullptr, nullptr);
+    K = Botan::BigInt();
+    while (K.bytes() != 64) {
+        K = Botan::random_safe_prime(rng, 512);
         putc('.', stdout);
         fflush(stdout);
     }
-    BN_bn2bin(bn_key, reinterpret_cast<unsigned char*>(K));
-    BN_set_word(bn_key, 0);
-    while (BN_num_bytes(bn_key) != 64) {
-        BN_generate_prime_ex(bn_key, 512, 1, nullptr, nullptr, nullptr);
+
+    N = Botan::BigInt();
+    while (N.bytes() != 64) {
+        N = Botan::random_safe_prime(rng, 512);
         putc('.', stdout);
         fflush(stdout);
     }
-    BN_bn2bin(bn_key, reinterpret_cast<unsigned char*>(N));
-
-    BN_free(bn_key);
 }
 
-void DS::CryptCalcX(uint8_t* X, const uint8_t* N, const uint8_t* K, uint32_t base)
+Botan::BigInt DS::CryptCalcX(const Botan::BigInt& N, const Botan::BigInt& K,
+                             uint32_t base)
 {
-    BIGNUM* bn_X = BN_new();
-    BIGNUM* bn_N = BN_new();
-    BIGNUM* bn_K = BN_new();
-    BIGNUM* bn_G = BN_new();
-    BN_CTX* ctx = BN_CTX_new();
-
     /* X = base ^ K % N */
-    BN_bin2bn(reinterpret_cast<const unsigned char*>(N), 64, bn_N);
-    BN_bin2bn(reinterpret_cast<const unsigned char*>(K), 64, bn_K);
-    BN_set_word(bn_G, base);
-    BN_mod_exp(bn_X, bn_G, bn_K, bn_N, ctx);
-    BN_bn2bin(bn_X, reinterpret_cast<unsigned char*>(X));
-
-    BN_free(bn_X);
-    BN_free(bn_N);
-    BN_free(bn_K);
-    BN_free(bn_G);
-    BN_CTX_free(ctx);
+    Botan::Power_Mod pow_mod(N, Botan::Power_Mod::BASE_IS_SMALL);
+    pow_mod.set_base(base);
+    pow_mod.set_exponent(K);
+    return pow_mod.execute();
 }
 
-void DS::CryptEstablish(uint8_t* seed, uint8_t* key, const uint8_t* N,
-                        const uint8_t* K, uint8_t* Y)
+void DS::CryptEstablish(uint8_t* seed, uint8_t* key, const Botan::BigInt& N,
+                        const Botan::BigInt& K, const Botan::BigInt& Y)
 {
-    BIGNUM* bn_Y = BN_new();
-    BIGNUM* bn_N = BN_new();
-    BIGNUM* bn_K = BN_new();
-    BIGNUM* bn_seed = BN_new();
-    BN_CTX* ctx = BN_CTX_new();
+    Botan::AutoSeeded_RNG rng;
+    DS_ASSERT(rng.is_seeded());
 
     /* Random 7-byte server seed */
-    init_rand();
-    RAND_bytes(reinterpret_cast<unsigned char*>(seed), 7);
+    rng.randomize(seed, 7);
 
     /* client = Y ^ K % N */
-    BN_bin2bn(reinterpret_cast<const unsigned char*>(Y), 64, bn_Y);
-    BN_bin2bn(reinterpret_cast<const unsigned char*>(N), 64, bn_N);
-    BN_bin2bn(reinterpret_cast<const unsigned char*>(K), 64, bn_K);
-    DS_ASSERT(!BN_is_zero(bn_N));
-    BN_mod_exp(bn_seed, bn_Y, bn_K, bn_N, ctx);
+    DS_ASSERT(!N.is_zero());
+    Botan::Power_Mod pow_mod(N);
+    pow_mod.set_base(Y);
+    pow_mod.set_exponent(K);
+    auto bn_seed = pow_mod.execute();
 
     /* Apply server seed for establishing crypt state with client */
     uint8_t keybuf[64];
-    if (BN_num_bytes(bn_seed) > 64)
+    if (bn_seed.bytes() > sizeof(keybuf))
         throw DS::InvalidConnectionHeader();
-    size_t outBytes = BN_bn2bin(bn_seed, reinterpret_cast<unsigned char*>(keybuf));
-    BYTE_SWAP_BUFFER(keybuf, outBytes);
-    for (size_t i=0; i<7; ++i)
+    bn_seed.binary_encode(keybuf);
+    BYTE_SWAP_BUFFER(keybuf, bn_seed.bytes());
+    for (size_t i = 0; i < 7; ++i)
         key[i] = keybuf[i] ^ seed[i];
-
-    BN_free(bn_Y);
-    BN_free(bn_N);
-    BN_free(bn_K);
-    BN_free(bn_seed);
-    BN_CTX_free(ctx);
 }
 
 
 struct CryptState_Private
 {
-    RC4_KEY m_writeKey;
-    RC4_KEY m_readKey;
+    std::unique_ptr<Botan::StreamCipher> m_readCipher;
+    std::unique_ptr<Botan::StreamCipher> m_writeCipher;
 };
 
 DS::CryptState DS::CryptStateInit(const uint8_t* key, size_t size)
 {
     CryptState_Private* state = new CryptState_Private;
-    RC4_set_key(&state->m_readKey, size, key);
-    RC4_set_key(&state->m_writeKey, size, key);
+    state->m_readCipher = Botan::StreamCipher::create("RC4");
+    state->m_writeCipher = Botan::StreamCipher::create("RC4");
+    state->m_readCipher->set_key(key, size);
+    state->m_writeCipher->set_key(key, size);
     return reinterpret_cast<CryptState>(state);
 }
 
@@ -181,12 +137,14 @@ void DS::CryptSendBuffer(const DS::SocketHandle sock, DS::CryptState crypt,
     if (!statep) {
         DS::SendBuffer(sock, buffer, size);
     } else if (size > 4096) {
-        std::unique_ptr<unsigned char[]> cryptbuf(new unsigned char[size]);
-        RC4(&statep->m_writeKey, size, reinterpret_cast<const unsigned char*>(buffer), cryptbuf.get());
+        std::unique_ptr<uint8_t[]> cryptbuf(new uint8_t[size]);
+        statep->m_writeCipher->cipher(reinterpret_cast<const uint8_t*>(buffer),
+                                      cryptbuf.get(), size);
         DS::SendBuffer(sock, cryptbuf.get(), size);
     } else {
-        unsigned char stack[4096];
-        RC4(&statep->m_writeKey, size, reinterpret_cast<const unsigned char*>(buffer), stack);
+        uint8_t stack[4096];
+        statep->m_writeCipher->cipher(reinterpret_cast<const uint8_t*>(buffer),
+                                      stack, size);
         DS::SendBuffer(sock, stack, size);
     }
 }
@@ -198,13 +156,13 @@ void DS::CryptRecvBuffer(const DS::SocketHandle sock, DS::CryptState crypt,
     if (!statep) {
         DS::RecvBuffer(sock, buffer, size);
     } else if (size > 4096) {
-        std::unique_ptr<unsigned char[]> cryptbuf(new unsigned char[size]);
+        std::unique_ptr<uint8_t[]> cryptbuf(new uint8_t[size]);
         DS::RecvBuffer(sock, cryptbuf.get(), size);
-        RC4(&statep->m_readKey, size, cryptbuf.get(), reinterpret_cast<unsigned char*>(buffer));
+        statep->m_readCipher->cipher(cryptbuf.get(), reinterpret_cast<uint8_t*>(buffer), size);
     } else {
-        unsigned char stack[4096];
+        uint8_t stack[4096];
         DS::RecvBuffer(sock, stack, size);
-        RC4(&statep->m_readKey, size, stack, reinterpret_cast<unsigned char*>(buffer));
+        statep->m_readCipher->cipher(stack, reinterpret_cast<uint8_t*>(buffer), size);
     }
 
 #ifdef DEBUG

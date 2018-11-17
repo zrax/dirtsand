@@ -27,7 +27,7 @@
 #include "settings.h"
 #include <string_theory/codecs>
 #include <string_theory/stdio>
-#include <openssl/evp.h>
+#include <botan/bigint.h>
 #include <readline.h>
 #include <history.h>
 #include <signal.h>
@@ -40,6 +40,10 @@
 
 #ifdef DEBUG
 extern bool s_commdebug;
+#endif
+
+#ifndef PATH_MAX
+#define PATH_MAX 4096
 #endif
 
 static char** dup_strlist(const char* text, const char** strlist, size_t count)
@@ -167,8 +171,6 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    OpenSSL_add_all_digests();
-
     // Preset some arguments
     ST::string settings = get_install_directory() + "/dirtsand.ini";
     bool restrictLogins = false;
@@ -265,15 +267,18 @@ int main(int argc, char* argv[])
                 }
             }
         } else if (args[0] == "keygen") {
-            uint8_t xbuffer[64];
             if (args.size() != 2) {
                 fputs("Usage:  keygen <new|show>\n", stderr);
             } else if (args[1] == "new") {
-                uint8_t nbuffer[3][64], kbuffer[3][64];
-                fputs("Generating new server keys...  This will take a while.", stdout);
+                Botan::BigInt nkey[3], kkey[3];
+                uint8_t nbuffer[3][64], kbuffer[3][64], xbuffer[3][64];
+                fputs("Generating new server keys...  This may take a while.", stdout);
                 fflush(stdout);
-                for (size_t i=0; i<3; ++i)
-                    DS::GenPrimeKeys(nbuffer[i], kbuffer[i]);
+                for (size_t i=0; i<3; ++i) {
+                    DS::GenPrimeKeys(nkey[i], kkey[i]);
+                    nkey[i].binary_encode(nbuffer[i]);
+                    kkey[i].binary_encode(kbuffer[i]);
+                }
 
                 fputs("\n--------------------\n", stdout);
                 fputs("Server keys: (dirtsand.ini)\n", stdout);
@@ -284,31 +289,46 @@ int main(int argc, char* argv[])
                 ST::printf("Key.Gate.N = {}\n", ST::base64_encode(nbuffer[2], 64));
                 ST::printf("Key.Gate.K = {}\n", ST::base64_encode(kbuffer[2], 64));
 
+                Botan::BigInt xkey[3];
+                xkey[0] = DS::CryptCalcX(nkey[0], kkey[0], CRYPT_BASE_AUTH);
+                xkey[1] = DS::CryptCalcX(nkey[1], kkey[1], CRYPT_BASE_GAME);
+                xkey[2] = DS::CryptCalcX(nkey[2], kkey[2], CRYPT_BASE_GATE);
+                for (size_t i = 0; i < 3; ++i)
+                    xkey[i].binary_encode(xbuffer[i]);
+
                 fputs("--------------------\n", stdout);
                 fputs("Client keys: (server.ini)\n", stdout);
-                DS::CryptCalcX(xbuffer, nbuffer[0], kbuffer[0], CRYPT_BASE_AUTH);
                 ST::printf("Server.Auth.N \"{}\"\n", ST::base64_encode(nbuffer[0], 64));
-                ST::printf("Server.Auth.X \"{}\"\n", ST::base64_encode(xbuffer, 64));
-                DS::CryptCalcX(xbuffer, nbuffer[1], kbuffer[1], CRYPT_BASE_GAME);
+                ST::printf("Server.Auth.X \"{}\"\n", ST::base64_encode(xbuffer[0], 64));
                 ST::printf("Server.Game.N \"{}\"\n", ST::base64_encode(nbuffer[1], 64));
-                ST::printf("Server.Game.X \"{}\"\n", ST::base64_encode(xbuffer, 64));
-                DS::CryptCalcX(xbuffer, nbuffer[2], kbuffer[2], CRYPT_BASE_GATE);
+                ST::printf("Server.Game.X \"{}\"\n", ST::base64_encode(xbuffer[1], 64));
                 ST::printf("Server.Gate.N \"{}\"\n", ST::base64_encode(nbuffer[2], 64));
-                ST::printf("Server.Gate.X \"{}\"\n", ST::base64_encode(xbuffer, 64));
+                ST::printf("Server.Gate.X \"{}\"\n", ST::base64_encode(xbuffer[2], 64));
                 fputs("--------------------\n", stdout);
             } else if (args[1] == "show") {
-                DS::CryptCalcX(xbuffer, DS::Settings::CryptKey(DS::e_KeyAuth_N),
-                               DS::Settings::CryptKey(DS::e_KeyAuth_K), CRYPT_BASE_AUTH);
-                ST::printf("Server.Auth.N \"{}\"\n", ST::base64_encode(DS::Settings::CryptKey(DS::e_KeyAuth_N), 64));
-                ST::printf("Server.Auth.X \"{}\"\n", ST::base64_encode(xbuffer, 64));
-                DS::CryptCalcX(xbuffer, DS::Settings::CryptKey(DS::e_KeyGame_N),
-                               DS::Settings::CryptKey(DS::e_KeyGame_K), CRYPT_BASE_GAME);
-                ST::printf("Server.Game.N \"{}\"\n", ST::base64_encode(DS::Settings::CryptKey(DS::e_KeyGame_N), 64));
-                ST::printf("Server.Game.X \"{}\"\n", ST::base64_encode(xbuffer, 64));
-                DS::CryptCalcX(xbuffer, DS::Settings::CryptKey(DS::e_KeyGate_N),
-                               DS::Settings::CryptKey(DS::e_KeyGate_K), CRYPT_BASE_GATE);
-                ST::printf("Server.Gate.N \"{}\"\n", ST::base64_encode(DS::Settings::CryptKey(DS::e_KeyGate_N), 64));
-                ST::printf("Server.Gate.X \"{}\"\n", ST::base64_encode(xbuffer, 64));
+                Botan::BigInt xkey[3];
+                uint8_t nbuffer[3][64], xbuffer[3][64];
+                DS::Settings::CryptKey(DS::e_KeyAuth_N).binary_encode(nbuffer[0]);
+                xkey[0] = DS::CryptCalcX(DS::Settings::CryptKey(DS::e_KeyAuth_N),
+                                         DS::Settings::CryptKey(DS::e_KeyAuth_K),
+                                         CRYPT_BASE_AUTH);
+                DS::Settings::CryptKey(DS::e_KeyGame_N).binary_encode(nbuffer[1]);
+                xkey[1] = DS::CryptCalcX(DS::Settings::CryptKey(DS::e_KeyGame_N),
+                                         DS::Settings::CryptKey(DS::e_KeyGame_K),
+                                         CRYPT_BASE_GAME);
+                DS::Settings::CryptKey(DS::e_KeyGate_N).binary_encode(nbuffer[2]);
+                xkey[2] = DS::CryptCalcX(DS::Settings::CryptKey(DS::e_KeyGate_N),
+                                         DS::Settings::CryptKey(DS::e_KeyGate_K),
+                                         CRYPT_BASE_GATE);
+                for (size_t i = 0; i < 3; ++i)
+                    xkey[i].binary_encode(xbuffer[i]);
+
+                ST::printf("Server.Auth.N \"{}\"\n", ST::base64_encode(nbuffer[0], 64));
+                ST::printf("Server.Auth.X \"{}\"\n", ST::base64_encode(xbuffer[0], 64));
+                ST::printf("Server.Game.N \"{}\"\n", ST::base64_encode(nbuffer[1], 64));
+                ST::printf("Server.Game.X \"{}\"\n", ST::base64_encode(xbuffer[1], 64));
+                ST::printf("Server.Gate.N \"{}\"\n", ST::base64_encode(nbuffer[2], 64));
+                ST::printf("Server.Gate.X \"{}\"\n", ST::base64_encode(xbuffer[2], 64));
             } else {
                 fputs("Error: keygen parameter should be 'new' or 'show'\n", stderr);
                 continue;

@@ -28,6 +28,11 @@
 
 #define NET_TIMEOUT (45)
 
+namespace Botan
+{
+    class BigInt;
+}
+
 namespace DS
 {
     enum KeyType
@@ -50,7 +55,7 @@ namespace DS
         uint32_t HoodPopThreshold();
 
         // Encryption keys
-        const uint8_t* CryptKey(KeyType key);
+        Botan::BigInt CryptKey(KeyType key);
         const uint32_t* DroidKey();
 
         // Optimized for throwing onto the network

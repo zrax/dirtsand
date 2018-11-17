@@ -20,6 +20,7 @@
 #include "streams.h"
 
 #include <string_theory/stdio>
+#include <botan/bigint.h>
 #include <vector>
 #include <cstdio>
 
@@ -63,7 +64,7 @@ uint32_t DS::Settings::HoodPopThreshold()
 static struct
 {
     /* Encryption */
-    uint8_t m_cryptKeys[DS::e_KeyMaxTypes][64];
+    DS::Blob m_cryptKeys[DS::e_KeyMaxTypes];
     uint32_t m_droidKey[4];
 
     /* Servers */
@@ -89,16 +90,15 @@ static struct
     ST::string m_welcome;
 } s_settings;
 
-#define DS_LOADBLOB(outbuffer, fixedsize, params) \
+#define DS_LOADBLOB(outblob, fixedsize, params) \
     { \
-        Blob data = Base64Decode(params[1]); \
-        if (data.size() != fixedsize) { \
+        outblob = Base64Decode(params[1]); \
+        if (outblob.size() != fixedsize) { \
             ST::printf(stderr, "Invalid base64 blob size for {}: " \
                                "Expected {} bytes, got {} bytes\n", \
-                       params[0], fixedsize, data.size()); \
+                       params[0], fixedsize, outblob.size()); \
             return false; \
         } \
-        memcpy(outbuffer, data.buffer(), fixedsize); \
     }
 
 #define BUF_TO_UINT(bufptr) \
@@ -234,10 +234,16 @@ void DS::Settings::UseDefaults()
     s_settings.m_dbDbase = ST_LITERAL("dirtsand");
 }
 
-const uint8_t* DS::Settings::CryptKey(DS::KeyType key)
+Botan::BigInt DS::Settings::CryptKey(DS::KeyType key)
 {
     DS_ASSERT(static_cast<int>(key) >= 0 && static_cast<int>(key) < e_KeyMaxTypes);
-    return s_settings.m_cryptKeys[key];
+
+    // Ideally we should just store the BigInt objects in our global
+    // s_settings.  However, Botan's secure_allocator has a bug that
+    // prevents objects with static lifetime from being cleaned up
+    // correctly, causing it to segfault at program termination.
+    const auto& key_blob = s_settings.m_cryptKeys[key];
+    return Botan::BigInt::decode(key_blob.buffer(), key_blob.size());
 }
 
 const uint32_t* DS::Settings::DroidKey()
